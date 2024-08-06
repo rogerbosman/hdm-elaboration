@@ -1,0 +1,45 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.gammaDef.
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.Opsem.
+
+(*** Unit/True/False *)
+Lemma CompatUnit : forall ψ,
+    ψ ⊢t≈ t__Unit ≈ t__Unit ▸ S__T T__Unit.
+Proof.
+  introv. unfolds. splits. 1,2:crush.
+  introv IN. unfolds. splits.
+  - simpl+. crush.
+  - simpl+. crush.
+  - exists t__Unit t__Unit. splits. crush. crush. simp'.
+    splits; try auto.
+Qed.
+
+Lemma CompatTrue : forall ψ,
+    ψ ⊢t≈ t__True ≈ t__True ▸ S__T T__Bool.
+Proof.
+  introv. unfolds. splits. 1,2:crush.
+  introv IN. unfolds. splits.
+  - simpl+. crush.
+  - simpl+. crush.
+  - exists t__True t__True. splits. crush. crush. simp'. crush.
+Qed.
+
+Lemma CompatFalse : forall ψ,
+    ψ ⊢t≈ t__False ≈ t__False ▸ S__T T__Bool.
+Proof.
+  introv. unfolds. splits. 1,2:crush.
+  introv IN. unfolds. splits.
+  - simpl+. crush.
+  - simpl+. crush.
+  - exists t__False t__False. splits. crush. crush. simp'. crush.
+Qed.

@@ -1,0 +1,984 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Preamble.Tag.
+Require Import Defs.HdmLems.
+
+Require Import Defs.E.
+Require Import Defs.ERels.
+Require Import Defs.ELookup.
+Require Import Defs.FrA.
+Require Import Defs.Freevars.
+Require Import Defs.Subst.
+Require Import Defs.Unification.
+Require Import Defs.WfE.
+Require Import Defs.WfSTt.
+(* Lemma example : forall ψ__in α x, *)
+(*     E_skvars ((ψ__in ::a α :: []) ::x x :- S__T (T__Var_f α)) = ∅. *)
+(* Proof. *)
+(*   intros. simpl+. *)
+
+
+
+Notation  "ψ1 ⊢ e ▸ ⟨ a ⟩ τ ⤳ t ⊣ ψ2" := (Inf ψ1 e a τ t ψ2) (at level 70, format "ψ1  ⊢  e  ▸  ⟨ a ⟩  τ  ⤳  t  ⊣  ψ2" ) : type_scope.
+
+
+
+(*** Wf *)
+Lemma Inf_lc : forall e ψ__in a τ t ψ__out,
+    ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+  -> lc(e).
+Proof.
+  introv INF. induction INF. econstructor. econstructor.
+  - freshx L. eapply lc_e__Lam_exists. eauto.
+  - constructor; eauto.
+  - freshx L. eapply lc_e__Let_exists; eauto.
+Qed.
+
+Lemma WfS_open_Sc_wrt_T : forall σ τ ψ,
+    ψ ⊢wfσ σ
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢wfσ open_Sc_wrt_T σ τ.
+Proof.
+  intros. split. crush. rewrite fsk_Sc_open_Sc_wrt_T_upper.
+  apply WfS_sk in H. apply WfT_sk in H0. fsetdec.
+Qed.
+
+
+Lemma Inst_WfT : forall t1 σ1 t2 a τ2 L ψ,
+    Inst t1 σ1 t2 a τ2 L
+  -> ψ ⊢wfσ σ1
+  -> (ψ ::a a) ⊢wfτ τ2.
+Proof.
+  introv INST WF. gen ψ. induction INST; intros. eapply WfT_E_A_sk_sub. eauto. erel_fsetdec.
+  specializes IHINST. applys WfS_open_Sc_wrt_T' WF.
+  applys WfT_E_A_sk_sub IHINST. erel_fsetdec.
+Abort.
+
+
+
+Fact Wft_tapp : forall ψ t τ,
+    ψ ⊢wft t__TApp t τ
+  <-> ψ ⊢wft t
+  /\ ψ ⊢wfτ τ.
+Proof.
+  unfold WfT. unfold Wft. split; intros; splits. simpl+ in H.
+  - destr. splits. inverts LC. crush. fsetdec. fsetdec.
+  - destr. inverts LC. crush.
+  - simpl+ in H. destr. fsetdec.
+  - simpl+ in H. constructor. jauto. jauto.
+  - simpl+ in H. simpl+. fsetdec.
+  - simpl+ in H. simpl+. fsetdec.
+Qed.
+
+Fact Wft_lam : forall ψ τ1 t2 x σ,
+    (ψ ::x x :- σ) ⊢wft (open_Tm_wrt_Tm t2 (t__Var_f x))
+  -> x ∉ fv__x(t2)
+  -> ψ ⊢wfτ τ1
+  -> ψ ⊢wft t__Lam τ1 t2.
+Proof.
+  unfold WfT. unfold Wft. intros; splits; destr.
+  - eapply lc_t__Lam_exists. jauto. jauto.
+  - simpl+. simpl+ in SUB0. rewrite <- fsk_Tm_open_Tm_wrt_Tm_lower in SUB0. fsetdec.
+  - simpl+. simpl+ in SUB1. rewrite <- ftv_Tm_open_Tm_wrt_Tm_lower in SUB1. fsetdec.
+Qed.
+
+Fact Wft_strengthen : forall ψ x σ t,
+    (ψ ::x x :- σ) ⊢wft t
+  -> x ∉ fv__x(t)
+  -> ψ ⊢wft t.
+Proof. intros. unfold Wft in *. simpl+ in *. destr. splits. crush. crush. fsetdec. Qed.
+
+Fact Wft_open_Tm_wrt_Tm : forall ψ t1 t2 x σ,
+    (ψ ::x x :- σ) ⊢wft open_Tm_wrt_Tm t1 (t__Var_f x)
+  -> ψ  ⊢wft t2
+  -> x ∉ fv__x(t1)
+  -> ψ ⊢wft open_Tm_wrt_Tm t1 t2.
+Proof.
+  unfold Wft. intros; splits; destr.
+  - eapply lc_body_Tm_wrt_Tm. 2:jauto. unfolds. intros.
+    forwards: subst_tvar_Tm_lc_Tm (open_Tm_wrt_Tm t1 (t__Var_f x)) (t__Var_f tx1) x. eassumption.
+    crush. rewrite subst_tvar_Tm_open_Tm_wrt_Tm in H. simpl+ in H. if_taut.
+    applys_eq H. fequals. symmetry. apply subst_tvar_Tm_notin. crush. crush.
+  - simpl+. simpl+ in SUB1. rewrite fsk_Tm_open_Tm_wrt_Tm_upper.
+    rewrite <- fsk_Tm_open_Tm_wrt_Tm_lower in SUB1.
+    fsetdec.
+  - simpl+ in *. rewrite ftv_Tm_open_Tm_wrt_Tm_upper.
+    rewrite <- ftv_Tm_open_Tm_wrt_Tm_lower in *. fsetdec.
+Qed.
+
+Lemma Inst_WfT : forall t1 σ1 t2 a τ2 L ψ,
+    Inst t1 σ1 t2 a τ2 L
+  -> ψ ⊢wfσ σ1
+  -> ψ ⊢wft t1
+  -> (ψ ::a a) ⊢wfτ τ2
+  /\ (ψ ::a a) ⊢wft t2.
+Proof.
+  introv INST WfS Wft. gen ψ. induction INST; intros.
+  - split.
+    eapply WfT_E_A_sk_sub. eauto. reldec.
+    eapply Wft_E_A_sk_sub. eauto. reldec. reldec.
+  - specializes IHINST. applys WfS_open_Sc_wrt_T' WfS.
+    eapply Wft_tapp. split.
+    eapply Wft_E_A_sk_sub. eauto. reldec. reldec. apply WfT_var. reldec.
+    destr. split.
+    eapply WfT_E_A_sk_sub. eauto. reldec.
+    eapply Wft_E_A_sk_sub. eauto. reldec. reldec.
+Qed.
+
+Lemma Inst_FrA : forall t1 σ1 t2 a τ2 L,
+    Inst t1 σ1 t2 a τ2 L
+  -> a ### L.
+Proof. introv INST. induction INST. crush. eapply FrA_shift'. eassumption. fsetdec. Qed.
+
+Fact Wft_var : forall ψ x,
+    x ∈ E_names ψ
+  -> ψ ⊢wft t__Var_f x.
+Proof. intros. splits. crush. simpl+. fsetdec. simpl+. fsetdec. Qed.
+
+Lemma U_Wf : forall ψ__in τ1 τ2 ψ__out,
+    U ψ__in τ1 τ2 ψ__out
+  -> wf(ψ__in)
+  -> wf(ψ__out).
+Admitted.
+
+Ltac wfdec :=
+  match goal with
+    | |- _ ⊢wfσ _ => eapply WfS_E_A_sk_sub; [eassumption|reldec]
+    | |- _ ⊢wfτ _ => eapply WfT_E_A_sk_sub; [eassumption|reldec]
+    | |- _ ⊢wft _ => eapply Wft_E_A_sk_sub; [eassumption|reldec|reldec]
+  end.
+Ltac wfdec' :=
+  match goal with
+    | |- _ ⊢wfσ _ => eapply WfS_E_A_sk_sub; [eauto|reldec]
+    | |- _ ⊢wfτ _ => eapply WfT_E_A_sk_sub; [eauto|reldec]
+    | |- _ ⊢wft _ => eapply Wft_E_A_sk_sub; [eauto|reldec|reldec]
+  end.
+
+Lemma WFT_close_Sc_wrt_A : forall ψ a τ,
+    (ψ ::a a) ⊢wfτ τ
+  -> ψ ⊢wfσ close_Sc_wrt_A (S__T τ) a.
+Admitted.
+Lemma WFt_close_Sc_wrt_A : forall ψ a t,
+    (ψ ::a a) ⊢wft t
+  -> ψ ⊢wft close_Tm_wrt_A t a.
+Admitted.
+
+Lemma close_Sc_wrt_A_disj : forall σ a,
+  varl a ∐ fv__α(close_Sc_wrt_A σ a).
+Admitted.
+Lemma close_Tm_wrt_A_disj : forall t a,
+  varl a ∐ fv__α(close_Tm_wrt_A t a).
+Admitted.
+
+Inductive WfInf : E -> Ex -> A -> T -> Tm -> E -> Prop :=
+ | WfInf__Var : forall (ψ:E) (x:var) (a:A) (τ:T) (t:Tm) (σ:Sc)
+     (IN:  (E_lookup  ψ   x  = Some  σ  ) )
+     (INST:  (Inst   (t__Var_f  x )    σ   t   a   τ  (E_skvars  ψ ) ) )
+     (WFE: wf(ψ::o ⦇t ▸ ⟨a⟩ S__T τ⦈)),
+     WfInf ψ (e__Var_f x) a τ t ψ
+ | WfInf__Unit : forall (ψ:E)
+     (WFE: wf(ψ::o ⦇t__Unit ▸ ⟨nil⟩ S__T T__Unit⦈)),
+     WfInf ψ e__Unit  nil  T__Unit t__Unit ψ
+ | WfInf__Abs : forall (L:vars) (ψ__in:E) (e:Ex) (a1 a2:A) (τ1 τ2:T) (t:Tm) (ψ__out:E) (α:skvar)
+     (FR:  ( α  ∉ (E_skvars  ψ__in )) )
+     (ALG:  (alg  α ) )
+     (INF:  ( forall x , x ∉  L  -> wf(E__Var (E__A ψ__in  (  α  :: nil ) ) x (S__T (T__Var_f α))) /\ wf(E__Var (E__A ψ__out a1) x (S__T τ1)) /\ WfInf (E__Var (E__A ψ__in  (  α  :: nil ) ) x (S__T (T__Var_f α)))  ( open_Ex_wrt_Ex e (e__Var_f x) )  a2 τ2  (open_Tm_wrt_Tm  t  (t__Var_f  x ))  (E__Var (E__A ψ__out a1) x (S__T τ1)) ) )
+     (WFE: wf(ψ__in)),
+     WfInf ψ__in (e__Lam e)  (  a2  ++  a1  )  (T__Fun τ1 τ2)  (t__Lam  τ1   t )  ψ__out
+ | WfInf__App : forall (ψ__in:E) (e1 e2:Ex) (a__out:A) (τ__out:T) (t__out:Tm) (ψ__out:E) (a1:A) (τ:T) (t1:Tm) (ψ1:E) (a2:A) (τ1:T) (t2:Tm) (ψ2:E) (t1':Tm) (a1':A) (τ':T) (α:skvar)
+     (INF1: WfInf ψ__in e1 a1 τ t1 ψ1)
+     (INF2: WfInf (E__O ψ1 t1 a1 (S__T τ)) e2 a2 τ1 t2 (E__O ψ2 t1' a1' (S__T τ')))
+     (FR:  ( α  ∉ (E_skvars  (E__A ψ2   (  a2  ++  a1'  )  ) )) )
+     (UNI: U  (E__O  (E__A ψ2   (   ( cons  α   a2  )   ++  a1'  )  )   (t__App t1' t2)  (nil:A)  (S__T (T__Var_f α)) )  τ' (T__Fun τ1 (T__Var_f α))  (E__O  (E__A ψ__out a__out)   t__out  (nil:A)  (S__T τ__out) ) )
+     (WFE1: wf(ψ__in))
+     (WFE2: wf(E__O ψ1 t1 a1 (S__T τ)))
+     (WFE3: wf(E__O  (E__A ψ2   (   ( cons  α   a2  )   ++  a1'  )  )   (t__App t1' t2)  (nil:A)  (S__T (T__Var_f α)) ))
+     (WFE4: wf((E__O  (E__A ψ__out a__out)   t__out  (nil:A)  (S__T τ__out) ))),
+     WfInf ψ__in (e__App e1 e2) a__out τ__out t__out ψ__out
+ | WfInf__Let : forall (L:vars) (ψ__in:E) (e1 e2:Ex) (a2:A) (τ2:T) (t2 t1':Tm) (ψout:E) (a1:A) (τ:T) (t1:Tm) (ψ1:E) (σ__out:Sc) (a1':A)
+     (INF1: WfInf ψ__in e1 a1 τ t1 ψ1)
+     (INF2:  ( forall x , x ∉  L  -> wf(E__O   (E__O  (E__Var ψ1 x  (close_Sc_wrt_A ( S__T  τ  )  a1 ) )    (close_Tm_wrt_A  t1   a1 )   (nil:A) (S__T T__Unit))   t__Unit  a1  (S__T T__Unit)) /\ wf(E__O   (E__O  (E__Var ψout x σ__out)   t1'  (nil:A) (S__T T__Unit))   t__Unit  a1'  (S__T T__Unit)) /\ WfInf (E__O   (E__O  (E__Var ψ1 x  (close_Sc_wrt_A ( S__T  τ  )  a1 ) )    (close_Tm_wrt_A  t1   a1 )   (nil:A) (S__T T__Unit))   t__Unit  a1  (S__T T__Unit))   ( open_Ex_wrt_Ex e2 (e__Var_f x) )  a2 τ2  (open_Tm_wrt_Tm  t2  (t__Var_f  x ))   (E__O   (E__O  (E__Var ψout x σ__out)   t1'  (nil:A) (S__T T__Unit))   t__Unit  a1'  (S__T T__Unit))  ) )
+     (WFE: wf(ψ__in)),
+     WfInf ψ__in (e__Let e1 e2) a2 τ2  (open_Tm_wrt_Tm  t2   t1' )  ψout.
+
+Lemma WfInf_Wf : forall ψ1 e a τ t ψ2,
+    WfInf ψ1 e a τ t ψ2
+  -> wf(ψ1)
+  /\ wf(ψ2 ::o ⦇t ▸ ⟨a⟩ S__T τ⦈).
+Proof.
+  introv INF. induction INF.
+  - split. eauto. crush.
+  - split. eauto. crush.
+  - split. assumption.
+    freshx L. specializes INF x. specializes INF. fsetdec. destr. inv_WfE.
+    econstructor. eassumption.
+Abort.
+
+Lemma Inf_WfInf : forall ψ1 e a τ t ψ2,
+    ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2
+  -> wf(ψ1)
+  -> WfInf ψ1 e a τ t ψ2.
+Abort.
+(* Proof. *)
+(*   introv INF WF. induction INF. *)
+(*   - forwards: E_lookup_wf; try eassumption. *)
+(*     forwards: Inst_WfT. eassumption. eassumption. *)
+(*     apply Wft_var. eauto using E_lookup_some1. destr. *)
+(*     econstructor. eassumption. eauto using Inst_FrA. eauto. *)
+(*   - constructor; crush. *)
+(*   - applys WfInf__Abs (E_names ψ__in ∪ E_names (ψ__out ::a a1) ∪ L). eassumption. eassumption. 2:eassumption. intros. *)
+(*     specializes H x. specializes H. fsetdec. *)
+(*       econstructor. econstructor. eassumption. simpl+. eapply FrA_singleton. fsetdec. *)
+(*       eapply WfS_var. simpl+. fsetdec. simpl+. fsetdec. *)
+(*     forwards: WfInf_Wf. eassumption. destr. splits; crush. *)
+(*   - specializes IHINF1. eassumption. *)
+(*     forwards [_ ?H]: WfInf_Wf. eassumption. *)
+(*     specializes IHINF2. eassumption. *)
+(*     inv_WfE. forwards: U_Wf UNI. econstructor. econstructor. eassumption. *)
+(*     eapply FrA_app. eassumption. eapply FrA_cons. split. eassumption. *)
+(*     simpl+. simpl+ in FR. clear - FR WFt0 WFS0. *)
+(*     eapply Wft_sk in WFt0. simpl+ in WFt0. *)
+(*     eapply WfS_sk in WFS0. simpl+ in WFS0. *)
+(*     rewrite E_A_skvars_E_skvars in *. fsetdec. *)
+(*     reldec. auto. apply WfS_var. reldec. *)
+(*     eapply Wft_app. split; wfdec. *)
+(*     inv_WfE. econstructor. eassumption. eassumption. wfdec. wfdec. *)
+(*   - specializes IHINF1. eassumption. *)
+(*     specializes IHINF2. eassumption. *)
+(*     inv_WfE. forwards: U_Wf UNI. econstructor. econstructor. eassumption. *)
+(*     eapply FrA_app. eassumption. eapply FrA_cons. split. eassumption. *)
+(*     simpl+. simpl+ in FR. clear - FR WFt0 WFS0. *)
+(*     eapply Wft_sk in WFt0. simpl+ in WFt0. *)
+(*     eapply WfS_sk in WFS0. simpl+ in WFS0. *)
+(*     rewrite E_A_skvars_E_skvars in *. fsetdec. *)
+(*     reldec. auto. apply WfS_var. reldec. *)
+(*     eapply Wft_app. split; wfdec. *)
+(*     inv_WfE. econstructor. eassumption. eassumption. wfdec. wfdec. *)
+(*   - freshx (L ∪ E_names ψ1 ∪ fv__x(t1') ∪ fv__x(t2)). specializes IHINF. eassumption. *)
+(*     specializes H x. specializes H. fsetdec. inv_WfE. *)
+(*     econstructor. econstructor. econstructor. eauto. *)
+(*     eapply WFT_close_Sc_wrt_A. eauto. fsetdec. auto. crush. *)
+(*     eapply WFt_close_Sc_wrt_A. wfdec. simpl+. split. eauto. *)
+(*     disj_union'. disj_union'. eauto. *)
+(*     apply close_Sc_wrt_A_disj. apply close_Tm_wrt_A_disj. crush. crush. *)
+(*     (**) *)
+(*     inv_WfE. econstructor. eauto. FrA_L_sub. wfdec. *)
+(*     forwards: Wft_strengthen ψout x σ__out t1'. wfdec. fsetdec. *)
+(*     applys Wft_open_Tm_wrt_Tm σ__out. wfdec. wfdec. fsetdec. *)
+(* Qed. *)
+
+Lemma Inf_Wf : forall ψ__in e a τ t ψ__out,
+    ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+  -> wf(ψ__in)
+  -> wf(ψ__out ::o ⦇t ▸ ⟨a⟩ S__T τ⦈).
+Proof.
+  introv INF WF. induction INF.
+  - forwards: E_lookup_wf; try eassumption.
+    forwards: Inst_WfT. eassumption. eassumption.
+    apply Wft_var. eauto using E_lookup_some1. destr.
+    econstructor. eassumption. eauto using Inst_FrA. eauto. eauto.
+  - constructor; crush.
+  - freshx (L ∪ E_names ψ__in ∪ fv__x(t0)).
+    specializes INF x. specializes INF. fsetdec.
+    assert (wf((ψ__in ::a α :: []) ::x x :- S__T (T__Var_f α))).
+      econstructor. econstructor. eassumption. simpl+. eapply FrA_singleton. fsetdec.
+      eapply WfS_var. simpl+. fsetdec. simpl+. fsetdec.
+    specializes H x. specializes H. fsetdec. eassumption.
+    inv_WfE. econstructor. eauto. eapply FrA_app. eassumption. eassumption. reldec.
+    simpl+. apply WfST. eapply WfT_Fun. split; wfdec'.
+    applys Wft_lam (S__T τ1). wfdec'. fsetdec. wfdec'.
+  - specializes IHINF1. eassumption.
+    specializes IHINF2. eassumption.
+    inv_WfE. forwards: U_Wf UNI. econstructor. econstructor. eassumption.
+    eapply FrA_app. eassumption. eapply FrA_cons. split. eassumption.
+    simpl+. simpl+ in FR. clear - FR WFt0 WFS0.
+    eapply Wft_sk in WFt0. simpl+ in WFt0.
+    eapply WfS_sk in WFS0. simpl+ in WFS0.
+    rewrite E_A_skvars_E_skvars in *. fsetdec.
+    reldec. auto. apply WfS_var. reldec.
+    eapply Wft_app. split; wfdec.
+    inv_WfE. econstructor. eassumption. eassumption. wfdec. wfdec.
+  - freshx (L ∪ E_names ψ1 ∪ fv__x(t1') ∪ fv__x(t2)). specializes IHINF. eassumption.
+    specializes H x. specializes H. fsetdec. inv_WfE.
+    econstructor. econstructor. econstructor. eauto.
+    eapply WFT_close_Sc_wrt_A. eauto. fsetdec. auto. crush.
+    eapply WFt_close_Sc_wrt_A. wfdec. simpl+. split. eauto.
+    disj_union'. disj_union'. eauto.
+    apply close_Sc_wrt_A_disj. apply close_Tm_wrt_A_disj. crush. crush.
+    (**)
+    inv_WfE. econstructor. eauto. FrA_L_sub. wfdec.
+    forwards: Wft_strengthen ψout x σ__out t1'. wfdec. fsetdec.
+    applys Wft_open_Tm_wrt_Tm σ__out. wfdec. wfdec. fsetdec.
+Qed.
+
+Lemma WfT_alg : forall ψ τ,
+    ψ ⊢wfτ τ
+  -> alg_E ψ
+  -> alg_L (fv__α(τ)).
+Admitted.
+Lemma Wft_alg : forall ψ t,
+    ψ ⊢wft t
+  -> alg_E ψ
+  -> alg_L (fv__α(t)).
+Admitted.
+
+Fact alg_A_nil :
+  alg_A [].
+Proof. unfolds. unfolds. crush. Qed.
+#[export] Hint Resolve alg_A_nil : core.
+
+Lemma Inst_alg_A : forall t1 σ1 t2 a τ2 L,
+    Inst t1 σ1 t2 a τ2 L
+  -> alg_A a.
+Proof.
+  introv INST. induction INST.
+  - eauto.
+  - unfolds. unfolds. simpl+. intros.
+    destr_union. eassumption. eauto.
+Qed.
+
+
+(* Lemma Inf_alg_A : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> alg_A a. *)
+(* Proof. *)
+(*   introv INF. induction INF. *)
+(*   - eauto using Inst_alg_A. *)
+(*   - eauto. *)
+(*   - freshx L. specializes *)
+Fact alg_E_app : forall ψ1 ψ2,
+    alg_E ψ1
+  -> alg_E ψ2
+  -> alg_E (ψ1 +++ ψ2).
+Proof. unfold alg_E. unfold alg_A. unfold alg_L. intros. simpl+ in H1. destr_union; eauto. Qed.
+#[export] Hint Resolve alg_E_app : core.
+
+Fact alg_E_oneA : forall a,
+   alg_A a
+ -> alg_E (<a>a).
+Proof. unfold alg_E. unfold alg_A. intros. simpl+ in *. crush. Qed.
+#[export] Hint Resolve alg_E_oneA : core.
+
+Fact alg_E_alg_A : forall ψ a,
+    alg_E ψ
+  -> alg_A a
+  -> alg_E (ψ ::a a).
+Proof. intros. norm. eauto. Qed.
+#[export] Hint Resolve alg_E_alg_A : core.
+
+Fact alg_E_consa1 : forall ψ a,
+    alg_E (ψ ::a a)
+  -> alg_E ψ.
+Proof. unfold alg_E. intros. eapply alg_L_sub_rewr. eassumption. reldec. Qed.
+Fact alg_E_consa2 : forall ψ a,
+    alg_E (ψ ::a a)
+  -> alg_A a.
+Proof. unfold alg_E. unfold alg_A. intros. eapply alg_L_sub_rewr. eassumption. reldec. Qed.
+#[export] Hint Resolve alg_E_consa1 alg_E_consa2 : core.
+
+
+Lemma Inf_alg_E : forall ψ1 e a τ t ψ2,
+    ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2
+  -> wf(ψ1)
+  -> alg_E ψ1
+  -> alg_E (ψ2 ::a a).
+Proof.
+  introv INF WF ALG. induction INF.
+  - forwards: Inst_alg_A. eassumption. eauto.
+  - crush.
+  - freshx L. specializes H x. specializes H. fsetdec. admit. unfolds. simpl+.
+    apply alg_L_union. apply alg_L_union. simpl+. assumption. eassumption. simpl+. eassumption.
+    unfold alg_E in *. applys alg_L_sub_rewr H. reldec.
+  - specializes IHINF1. eassumption. eassumption.
+    assert (wf(ψ1 ::o ⦇t1 ▸ ⟨a1⟩ S__T τ⦈)). admit.
+    specializes IHINF2. assumption. unfolds. simpl+. apply alg_L_union. 2:apply alg_L_union. 2:apply alg_L_union.
+    eapply alg_E_consa1. eassumption.
+    eapply Wft_alg. eauto. eauto. eapply alg_E_consa2. eassumption.
+    eapply WfT_alg. eauto. eauto.
+    forwards: U_alg_E. eassumption. unfolds. simpl+.
+    apply alg_L_union. apply alg_L_union. apply alg_L_union. simpl+. eassumption.
+    eapply alg_L_sub_rewr. eapply IHINF2. reldec.
+    eapply alg_L_sub_rewr. eapply IHINF2. reldec.
+    apply alg_L_union. apply alg_L_union.
+    eapply alg_L_sub_rewr. eapply IHINF2. reldec.
+    forwards: Inf_Wf INF2. admit.
+    rewrite Wft_sk. 2:eauto.
+    eapply alg_L_sub_rewr. eapply IHINF2. rewrite E_A_skvars_E_skvars. reldec.
+    simpl+. eassumption.
+    eapply alg_L_sub_rewr. eapply H0. reldec.
+  - freshx L. specializes IHINF. eassumption. eassumption.
+    assert (wf(((ψ1 ::x x :- close_Sc_wrt_A (S__T τ) a1) ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈) ::o ⦇t__Unit ▸ ⟨a1⟩ S__T T__Unit⦈)). admit.
+    specializes H x. specializes H. fsetdec. eassumption.
+    unfolds. simpl+.
+    apply alg_L_union. apply alg_L_union. apply alg_L_union.
+    eapply alg_L_sub_rewr. eapply IHINF. reldec.
+    rewrite WfS_sk. 2:clear - H0; eauto 6.
+    eapply alg_L_sub_rewr. eapply IHINF. reldec.
+    rewrite Wft_sk. 2:clear - H0; eauto 6.
+    simpl+. eapply alg_L_sub_rewr. eapply IHINF. reldec.
+    eapply alg_L_sub_rewr. eapply IHINF. reldec.
+    eapply alg_L_sub_rewr. eapply H. reldec.
+Admitted.
+
+(* Lemma Inf_alg : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> wf(ψ1) /\ alg_E ψ1 -> alg_E ψ2). *)
+
+(*   eapply Inf_WfE_ind. 6:eassumption. 6:eassumption. *)
+(*   - inverts INST. *)
+(*   - crush. *)
+(*   - freshalgx L. specializes H x. specializes H. fsetdec. simpl+. *)
+(*     apply alg_L_union. apply alg_L_union; eauto. eauto. *)
+(*     applys alg_L_sub_rewr H. simpl+. fsetdec. *)
+(*   - specializes IHINF1. eassumption. *)
+(*     specializes IHINF2. simpl+. *)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(* (*** SameShape *) *)
+
+(* Lemma Inf_SameShape : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> SameShape__E ψ1 ψ2. *)
+(* Proof. *)
+(*   introv INF. induction INF. *)
+(*   - crush. *)
+(*   - crush. *)
+(*   - forwards [tx NIL__tx]: atom_fresh L. *)
+(*     forwards [x NIL_tx]: atom_fresh (L ∪ {{tx}}). *)
+(*     specializes H tx. specializes H x. fsetdec. specializes H. fsetdec. *)
+(*     inv_SSE. crush. *)
+(*   - etransitivity. eassumption. inv_SSE. etransitivity. eassumption. *)
+(*     inverts UNI. simpl+ in H. forwards: Us_SameShape. eassumption. *)
+(*     inv_SSE. eassumption. *)
+(*   - etransitivity. eassumption. *)
+(*     forwards [tx NIL__tx]: atom_fresh L. *)
+(*     forwards [x NIL_tx]: atom_fresh (L ∪ {{tx}}). *)
+(*     specializes H0 tx. specializes H0 x. fsetdec. specializes H0. fsetdec. *)
+(*     inv_SSE. eassumption. *)
+(* Qed. *)
+
+(* Corollary Inf_SameLength : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> SameLength__E ψ1 ψ2. *)
+(* Proof. eauto using SSE_length, Inf_SameShape. Qed. *)
+
+(* Axiom U_SameLength : forall ψ1 ψ2 τ1 τ2, *)
+(*     ψ1 ⊢u τ1 ∼ τ2 ⊣ ψ2 *)
+(*   -> SameLength__E ψ1 ψ2. *)
+
+(* (*** Wf *) *)
+(* Lemma Inf_wf : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> ψ2 ⊢τ τ *)
+(*   /\ ψ2 ⊢t t. *)
+(* Admitted. *)
+(* Corollary Inf_wf__τ : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> ψ2 ⊢τ τ. *)
+(* Proof. apply Inf_wf. Qed. *)
+(* Corollary Inf_wf__t : forall ψ1 e a τ t ψ2, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> ψ2 ⊢t t. *)
+(* Proof. apply Inf_wf. Qed. *)
+
+(* (*** Renaming *) *)
+(* Fact E_A_skvars_subst_name_E : forall ψ x__in x__out, *)
+(*     E_A_skvars ({x__in ≔__x x__out}ψ) = E_A_skvars ψ. *)
+(* Proof. induction ψ; simpl+; crush. Qed. *)
+(* #[export] Hint Rewrite E_A_skvars_subst_name_E : core. *)
+
+(* Fact E_A_O_skvars_subst_name_E : forall ψ x__in x__out, *)
+(*     E_A_O_skvars ({x__in ≔__x x__out}ψ) = E_A_O_skvars ψ. *)
+(* Proof. induction ψ; simpl+; crush. Qed. *)
+(* #[export] Hint Rewrite E_A_O_skvars_subst_name_E : core. *)
+
+(* Arguments subst_var x__in x__out x /. *)
+
+(* Ltac simpl_subst_name := repeat (unfold subst__x; unfold substable_var; unfold subst_var). *)
+
+(* Fact subst_name_E_in : forall x x__out x__in σ ψ, *)
+(*     (σ, x) ∈σx E_bindings ψ *)
+(*   -> ( x <> x__out /\ (σ, x) ∈σx E_bindings ({x__in ≔__x x__out}ψ) *)
+(*     \/ x = x__out /\ (σ, x__in) ∈σx E_bindings ({x__in ≔__x x__out}ψ)). *)
+(* Proof. *)
+(*   intros x x__out. destruct (x__out == x) as [EQ|NEQ]. *)
+(*   - introv IN. right. split. crush. *)
+(*     induction ψ. 1,2,4:crush. *)
+(*     simpl+ in *. destr_union. crush. inverts H. simpl_subst_name. *)
+(*     if_taut. crush. *)
+(*   - introv IN. left. split. crush. *)
+(*     induction ψ. 1,2,4:crush. *)
+(*     simpl+ in *. destr_union. crush. inverts H. simpl_subst_name. *)
+(*     if_taut. crush. *)
+(* Qed. *)
+
+(* Corollary subst_name_E_in__eq : forall σ ψ x__in x__out, *)
+(*     (σ, x__out) ∈σx E_bindings ψ *)
+(*   -> (σ, x__in) ∈σx E_bindings ({x__in ≔__x x__out}ψ). *)
+(* Proof. *)
+(*   intros. forwards LEM: subst_name_E_in x__out x__out x__in. eassumption. destruct LEM; crush. *)
+(* Qed. *)
+
+(* Corollary subst_name_E_in__neq : forall σ x ψ x__in x__out, *)
+(*     (σ, x) ∈σx E_bindings ψ *)
+(*   -> x__out <> x *)
+(*   -> (σ, x) ∈σx E_bindings ({x__in ≔__x x__out}ψ). *)
+(* Proof. *)
+(*   intros. forwards LEM: subst_name_E_in x x__out x__in. eassumption. destruct LEM; crush. *)
+(* Qed. *)
+
+(* Lemma Inst_subst_name : forall x__in x__out L t1 σ t2 a τ, *)
+(*     Inst t1 σ t2 a τ L *)
+(*   -> Inst ({t__Var_f x__in ≔ x__out}t1) σ ({t__Var_f x__in ≔ x__out}t2) a τ L. *)
+(* Proof. introv INST. induction INST; crush. Qed. *)
+
+(* Fact Inst_ftv_sub : forall t1 σ t2 a τ L, *)
+(*     Inst t1 σ t2 a τ L *)
+(*   -> fv__x(t2) = fv__x(t1). *)
+(* Proof. *)
+(*   introv INST. induction INST; crush. *)
+(* Qed. *)
+
+(* Corollary Inst_ftv_sub__neq : forall x__in x__out x σ t a τ L, *)
+(*     Inst (t__Var_f x) σ t a τ L *)
+(*   -> x <> x__out *)
+(*   -> Inst (t__Var_f x) σ ({t__Var_f x__in ≔ x__out}t) a τ L. *)
+(* Proof. *)
+(*   introv INST NEQ. applys_eq INST. apply subst_tvar_Tm_notin. *)
+(*   erewrite Inst_ftv_sub. 2:eassumption. crush. *)
+(* Qed. *)
+
+(* Ltac unfold_subst := *)
+(*     unfold subst__x; unfold substable_var_Ex *)
+(*   || unfold subst__x; unfold substable_var_Tm *)
+(*   || unfold subst; unfold substable_skvar_Sc *)
+(*   || unfold subst; unfold substable_skvar_T *)
+(*   || unfold subst; unfold substable_skvar_Tm. *)
+(* Ltac unfold_fsk := *)
+(*     unfold fsk; unfold fskable_Sc *)
+(*   || unfold fsk; unfold fskable_T *)
+(*   || unfold fsk; unfold fskable_Tm. *)
+(* Ltac unfold_fv := *)
+(*     unfold fv; unfold fvable_Tm *)
+(*   || unfold fv; unfold fvable_Ex. *)
+(* Ltac unfold_singletons := repeat ( simpl_subst_name || unfold_fsk || unfold fv). *)
+
+(* Lemma subst_tvar_Tm_close_Tm_wrt_A : forall a t__in x__out t, *)
+(*     lc(t__in) *)
+(*   (* -> x__out ∉ varl a *) *)
+(*   -> varl a ∐ fv__α(t__in) *)
+(*   -> {t__in ≔__x x__out} (close_Tm_wrt_A t a) = close_Tm_wrt_A ({t__in ≔__x x__out} t) a. *)
+(* Proof. *)
+(*   intro a. ind_a a. crush. *)
+(*   intros. simpl+. fequals. *)
+(*   erewrite <- IHa. applys_eq subst_tvar_Tm_close_Tm_wrt_T. crush. in_disj. crush. disj_sub. *)
+(* Qed. *)
+
+(* Lemma Unification_subst_name : forall x__in x__out ψ__in τ1 τ2 ψ__out, *)
+(*     ψ__in ⊢u τ1 ∼ τ2 ⊣ ψ__out *)
+(*   -> ({x__in ≔__x x__out}ψ__in) ⊢u τ1 ∼ τ2 ⊣ ({x__in ≔__x x__out}ψ__out). *)
+(* Admitted. *)
+
+(* Definition UsedAsNameIn α ψ := exists ψ1 ψ2 a, ψ = (ψ1 ::a a) +++ ψ2 -> α ∉ varl a. *)
+
+(* Lemma Inf_subst_name : forall ψ__in e a τ t ψ__out, *)
+(*     ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out *)
+(*   -> forall x__in x__out, *)
+(*       ({ x__in ≔__x x__out } ψ__in) ⊢ { e__Var_f x__in ≔__x x__out } e ▸ ⟨a⟩ τ ⤳ { t__Var_f x__in ≔__x x__out } t ⊣ ({ x__in ≔__x x__out } ψ__out). *)
+(* Proof. *)
+(*   introv INF. induction INF; intros x__in x__out (* IAN *). *)
+
+(*   (*Var*) *)
+(*   - simpl+. if_dec. *)
+(*     + econstructor. eauto using subst_name_E_in__eq. simpl+. *)
+(*       forwards INST': Inst_subst_name x__in x__out. eassumption. *)
+(*       applys_eq INST'. simpl+. if_taut. *)
+(*     + econstructor. eauto using subst_name_E_in__neq. simpl+. eauto using Inst_ftv_sub__neq. *)
+
+(*   (*Unit*) *)
+(*   - crush. *)
+
+(*   (*Abs*) *)
+(*   - simpl+. applys Inf__Abs (L ∪ {{x__out}}). *)
+(*     simpl+. eassumption. *)
+(*     intros tx NIL__tx x NIL__x. specializes H tx. specializes H x. fsetdec. specializes H x__in. fsetdec. specializes H x__out. *)
+(*     destruct (x == x__out) as [?|NEQ1]. fsetdec. *)
+(*     destruct (tx == x__out) as [?|NEQ2]. fsetdec. *)
+(*     applys_eq H. *)
+(*     + simpl+. fequals. simpl_subst_name. if_taut. *)
+(*     + rewrite subst_var_Ex_open_Ex_wrt_Ex. simpl+. if_taut. crush. *)
+(*     + rewrite subst_tvar_Tm_open_Tm_wrt_Tm. simpl+. if_taut. crush. *)
+(*     + simpl+. fequals. simpl_subst_name. if_taut. *)
+
+(*   (*App*) *)
+(*   - simpl+. applys Inf__App ({x__in ≔__x x__out}ψ__in) ({x__in ≔__x x__out}ψ__out) ({x__in ≔__x x__out}ψ1) ({x__in ≔__x x__out}ψ2) α. eauto. *)
+(*     applys_eq IHINF2. *)
+(*     (* + admit. *) *)
+(*     + clear - FR. simpl+ in *. eassumption. *)
+(*     + forwards UNI': Unification_subst_name x__in x__out. eassumption. simpl+ in UNI'. *)
+(*       applys_eq UNI'. *)
+
+(*   (*Let*) *)
+(*   - simpl+. applys Inf__Let (L ∪ {{x__out}}). eauto. *)
+(*     intros tx NIL__tx x NIL__x. specializes H0 tx. specializes H0 x. fsetdec. specializes H0 x__in. fsetdec. specializes H0 x__out. *)
+(*     destruct (x == x__out) as [?|NEQ1]. fsetdec. *)
+(*     destruct (tx == x__out) as [?|NEQ2]. fsetdec. *)
+(*     applys_eq H0. *)
+(*     + simpl+. fequals. fequals. simpl_subst_name. if_taut. *)
+(*       rewrite subst_tvar_Tm_close_Tm_wrt_A. reflexivity. constructor. simpl+. crush. *)
+(*     + rewrite subst_var_Ex_open_Ex_wrt_Ex. simpl+. if_taut. crush. *)
+(*     + rewrite subst_tvar_Tm_open_Tm_wrt_Tm. simpl+. if_taut. crush. *)
+(*     + simpl+. fequals. simpl_subst_name. if_taut. *)
+(* Qed. *)
+
+
+
+(* (* Lemma subst_name_t_notin_fix : forall t x__in x__out, *) *)
+(* (*     x__out ∉ fv__x(t) *) *)
+(* (*   -> {x__in ≔__x x__out}t = t. *) *)
+(* (* Proof. crush. Qed. *) *)
+
+(* Fact E_O_names_E_names : forall ψ, *)
+(*     E_names ψ ⊆ E_O_names ψ. *)
+(* Proof. induction ψ; crush. Qed. *)
+(* #[export] Hint Resolve E_O_names_E_names : core. *)
+
+(* Lemma subst_name_E_fresh_eq : forall ψ x__in x__out, *)
+(*     x__out ∉ E_O_names ψ *)
+(*   -> {x__in ≔__x x__out}ψ = ψ. *)
+(* Proof. *)
+(*   introv NIE. induction ψ. crush. *)
+(*   - simpl+. fequals. apply IHψ. fsetdec+. *)
+(*   - simpl+. fequals. apply IHψ. fsetdec+. *)
+(*     simpl_subst_name. if_dec. 2:crush. *)
+(*     false. apply NIE. fsetdec+. *)
+(*   - simpl+. fequals. apply IHψ. fsetdec+. *)
+(*     apply subst_tvar_Tm_fresh_eq. simpl+ in NIE. fsetdec. *)
+(* Qed. *)
+
+(* Lemma ftv_Tm_SameShape__t : forall t1 t2, *)
+(*     SameShape__t t1 t2 *)
+(*   -> fv(t1) = fv(t2). *)
+(* Proof. introv SSt. induction SSt; simpl+; crush. Qed. *)
+
+(* Lemma E_O_names_SameShape__E : forall ψ1 ψ2, *)
+(*     SameShape__E ψ1 ψ2 *)
+(*   -> E_O_names ψ1 = E_O_names ψ2. *)
+(* Proof. *)
+(*   introv SSE. induction SSE. 1,2,3: crush. *)
+(*   simpl+. rewrite IHSSE. erewrite ftv_Tm_SameShape__t. 2:eassumption. reflexivity. *)
+(* Qed. *)
+
+(* Corollary E_O_names_Inf : forall ψ1 ψ2 e a τ t, *)
+(*     ψ1 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ2 *)
+(*   -> E_O_names ψ1 = E_O_names ψ2. *)
+(* Proof. eauto using Inf_SameShape, E_O_names_SameShape__E. Qed. *)
+
+(* Corollary Inf_subst_name_head: forall x__out ψ__in σ e a τ t ψ__out σ', *)
+(*    ψ__in ::x x__out :- σ ⊢ open_Ex_wrt_Ex e (e__Var_f x__out) ▸ ⟨a⟩ τ ⤳ open_Tm_wrt_Tm t (t__Var_f x__out) ⊣ ψ__out ::x x__out :- σ' *)
+(*  -> x__out ∉ (E_O_names ψ__in ∪ fv(e) ∪ fv__x(t)) *)
+(*  -> exists L, forall x__in, x__in ∉ L *)
+(*  -> ψ__in ::x x__in  :- σ ⊢ open_Ex_wrt_Ex e (e__Var_f x__in ) ▸ ⟨a⟩ τ ⤳ open_Tm_wrt_Tm t (t__Var_f x__in ) ⊣ ψ__out ::x x__in  :- σ'. *)
+(* Proof. *)
+(*   introv INF NIE__xout. exists (E_O_names ψ__in). intros x__in NIL__x. *)
+(*   forwards INF': Inf_subst_name x__in x__out. eassumption. *)
+(*   applys_eq INF'. *)
+(*   - simpl+. fequals. symmetry. apply subst_name_E_fresh_eq. fsetdec. simpl_subst_name. if_taut. *)
+(*   - rewrite subst_var_Ex_open_Ex_wrt_Ex. 2:crush. simpl+. if_taut. *)
+(*     rewrite subst_var_Ex_fresh_eq. crush. fsetdec. *)
+(*   - rewrite subst_tvar_Tm_open_Tm_wrt_Tm. 2:crush. simpl+. if_taut. *)
+(*     rewrite subst_tvar_Tm_fresh_eq. crush. fsetdec. *)
+(*   - simpl+. fequals. symmetry. apply subst_name_E_fresh_eq. *)
+(*     forwards: Inf_SameShape. apply INF. inv_SSE. *)
+(*     erewrite <- E_O_names_SameShape__E. 2:eassumption. fsetdec. simpl_subst_name. if_taut. *)
+(* Qed. *)
+
+(* Corollary Inf_subst_name_head' : forall x__out ψ__in σ1 t1 a1 σ2 e a2 τ2 t2 ψ__out σ1' t1' a1' σ2', *)
+(*    ψ__in ::x x__out :- σ1 ::o ⦇t1 ▸ ⟨a1⟩ σ2⦈ ⊢ open_Ex_wrt_Ex e (e__Var_f x__out) ▸ ⟨a2⟩ τ2 ⤳ open_Tm_wrt_Tm t2 (t__Var_f x__out) ⊣ ψ__out ::x x__out :- σ1' ::o ⦇t1' ▸ ⟨a1'⟩ σ2'⦈ *)
+(*  -> x__out ∉ (E_O_names ψ__in ∪ fv__x(t1)) *)
+(*  (* -> ψ__in ⊢t t1 *) *)
+(*  -> exists L, forall x__in, x__in ∉ L *)
+(*  -> ψ__in ::x x__in  :- σ1 ::o ⦇t1 ▸ ⟨a1⟩ σ2⦈ ⊢ open_Ex_wrt_Ex e (e__Var_f x__in ) ▸ ⟨a2⟩ τ2 ⤳ open_Tm_wrt_Tm t2 (t__Var_f x__in ) ⊣ ψ__out ::x x__in  :- σ1' ::o ⦇t1' ▸ ⟨a1'⟩ σ2'⦈. *)
+(* Admitted. *)
+(* (* Proof. *) *)
+(* (*   introv INF NIE__xout. exists (E_O_names ψ__in). intros x__in NIL__x. *) *)
+(* (*   forwards INF': Inf_subst_name x__in x__out. eassumption. *) *)
+(* (*   applys_eq INF'. *) *)
+(* (*   - simpl+. fequals. fequals. symmetry. apply subst_name_E_fresh_eq. fsetdec. simpl_subst_name. if_taut. *) *)
+(* (*   - rewrite subst_var_Ex_open_Ex_wrt_Ex. 2:crush. simpl+. if_taut. *) *)
+(* (*     rewrite subst_var_Ex_fresh_eq. crush. fsetdec. *) *)
+(* (*   - rewrite subst_tvar_Tm_open_Tm_wrt_Tm. 2:crush. simpl+. if_taut. *) *)
+(* (*     rewrite subst_tvar_Tm_fresh_eq. crush. fsetdec. *) *)
+(* (*   - simpl+. fequals. symmetry. apply subst_name_E_fresh_eq. *) *)
+(* (*     forwards: Inf_SameShape. apply INF. inv_SSE. *) *)
+(* (*     erewrite <- E_O_names_SameShape__E. 2:eassumption. fsetdec. simpl_subst_name. if_taut. *) *)
+(* (* Qed. *) *)
+
+
+
+
+(* (* Corollary Inf_subst_name' : forall y x σ σ' ψ__in e a τ t ψ__out, *) *)
+(* (*     (ψ__in ::x x :- σ) ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ (ψ__out ::x x :- σ') *) *)
+(* (*   (* -> x \notin (Env_boundvars env__in) *) *) *)
+(* (*   -> (ψ__in ::x y :- σ) ⊢ { e__Var_f x ≔ y } e ▸ ⟨a⟩ τ ⤳ t ⊣ (ψ__out ::x y :- σ'). *) *)
+(* (* Admitted. *) *)
+
+(* Fact notin_union : forall α L1 L2, *)
+(*     α ∉ L1 *)
+(*   -> α ∉ L2 *)
+(*   -> α ∉ (L1 ∪ L2). *)
+(* Proof. auto. Qed. *)
+
+(* Fact ftv_Tm__close_Tm_wrt_A : forall t a, *)
+(*     fv__x(close_Tm_wrt_A t a) ⊆ fv__x(t). *)
+(* Proof. intros. ind_a a. crush. simpl+. rewrite ftv_Tm_close_Tm_wrt_T. eassumption. Qed. *)
+
+(* (*** Weakening *) *)
+(* Section InfWeakening. *)
+(*   Variable R : E -> E -> Prop. *)
+
+(*   Notation "ψ1 ∼ ψ2" := (R ψ1 ψ2) (at level 70). *)
+
+(*   Variable R_app_proper : Proper (R ==> eq ==> R) E__app. *)
+
+(*   Variable R__var : forall ψ ψ' *)
+(*                       σ x t a τ, *)
+(*       ψ ∼ ψ' *)
+(*     -> (σ, x) ∈σx E_bindings ψ *)
+(*     -> Inst (t__Var_f x) σ t a τ (E_A_skvars ψ) *)
+(*     -> exists σ', *)
+(*         (σ', x) ∈σx E_bindings ψ' *)
+(*       /\ Inst (t__Var_f x) σ' t a τ (E_A_skvars ψ'). *)
+
+(*   Variable R__fv : forall ψ ψ' *)
+(*                     α, *)
+(*       ψ ∼ ψ' *)
+(*     -> α ∉ E_A_O_skvars ψ *)
+(*     -> α ∉ E_A_O_skvars ψ'. *)
+
+(*   Variable R__destr : forall ψ__in ψ__in' ψ__out ψ__out' ψ__cons, *)
+(*       ψ__out +++ ψ__cons ∼ ψ__out' *)
+(*     -> ψ__in ∼ ψ__in' *)
+(*     -> SameLength__E ψ__in ψ__out *)
+(*     -> exists ψ__out'', ψ__out' = ψ__out'' +++ ψ__cons *)
+(*               /\ ψ__out ∼ ψ__out''. *)
+(* About U. *)
+
+(*   Theorem U_R : forall ψ__in ψ__in' ψ__out τ1 τ2, *)
+(*       U ψ__in τ1 τ2 ψ__out *)
+(*     -> ψ__in ∼ ψ__in' *)
+(*     -> exists ψ__out', *)
+(*         ψ__out ∼ ψ__out' *)
+(*       /\ U ψ__in' τ1 τ2 ψ__out'. *)
+(*   Admitted. *)
+
+(*   Theorem Inf_R : forall ψ__in ψ__in' ψ__out e a τ t, *)
+(*       ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out *)
+(*     -> ψ__in ∼ ψ__in' *)
+(*     -> exists ψ__out', *)
+(*         ψ__in' ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out' *)
+(*       /\ ψ__out ∼ ψ__out'. *)
+(*   Proof. *)
+(*     assert (X: R_app_proper = R_app_proper /\ R__var = R__var /\ R__fv = R__fv /\ R__destr = R__destr). crush. clear X. *)
+(*     introv Inf REL. gen ψ__in'. induction Inf; intros. *)
+(*     (*Var*) *)
+(*     - exists ψ__in'. splits. *)
+(*       + forwards [σ' [? ?]]: R__var; try eassumption. eauto. *)
+(*       + auto. *)
+
+(*     (*Unit*) *)
+(*     - exists. splits. crush. eassumption. *)
+
+(*     (*Abs*) *)
+(*     - forwards [tx NIL__tx]: atom_fresh L. *)
+(*       forwards [x NIL__x]: atom_fresh (L \u {{tx}} \u (E_O_names (ψ__in' ::a α :: []) ∪ fv__x(e)) ∪ fv__x(t0)). *)
+(*       forwards [ψ__out'' [?INF' REL__out']]: H tx x. fsetdec. fsetdec. norm. repeat rewrite <- E_app_assoc. apply R_app_proper. eassumption. reflexivity. *)
+(*       forwards [ψ__out' [EQ REL__out]]: R__destr. *)
+(*         norm in REL__out'. repeat rewrite <- E_app_assoc in REL__out'. applys REL__out'. *)
+(*         apply REL. eapply Inf_SameLength. eapply Inf__Abs; eauto. *)
+(*         subst. *)
+(*       simpl+ in INF'. asserts_rewrite (tx = x) in INF'. admit. *)
+(*       apply Inf_subst_name_head in INF'. 2:fsetdec. destruct INF' as [L' INF']. *)
+(*       exists. splits. *)
+(*       + applys Inf__Abs L'. eapply R__fv. eassumption. eassumption. *)
+(*         intros y NIL__y ty NIL__ty. asserts_rewrite (ty = y). admit. *)
+(*         applys INF'. fsetdec. *)
+(*       + eassumption. *)
+
+(*     (*App*) *)
+(*     - forwards [ψ1' [Inf1' REL1']]: IHInf1. eassumption. *)
+(*       forwards [ψ2'' [INF2' REL2'']]: IHInf2 (ψ1' ::o ⦇t1 ▸ ⟨a1⟩ S__T τ⦈). norm. apply R_app_proper. eassumption. crush. *)
+(*       forwards SL: Inf_SameLength. apply Inf2. simpl+ in SL. inverts SL. *)
+(*       forwards [ψ2' [EQ REL2']]: R__destr. norm in REL2''; apply REL2''. apply REL1'. eassumption. subst. clear REL2''. *)
+(*       forwards [ψ__out'' [REL__out'' UNI']]: U_R. eassumption. norm. repeat rewrite <- E_app_assoc. apply R_app_proper. eassumption. reflexivity. *)
+(*       forwards SL: U_SameLength. apply UNI. simpl+ in SL. inverts SL. *)
+(*       forwards [ψ__out' [EQ REl__out']]: R__destr. norm in REL__out''. rewrite <- E_app_assoc in REL__out''. apply REL__out''. apply REL2'. eassumption. subst. *)
+(*       exists. split. *)
+(*       + applys Inf__App α. eassumption. applys_eq INF2'. eapply R__fv. 2:eassumption. norm. apply R_app_proper. eassumption. auto. applys_eq UNI'. *)
+(*       + crush. *)
+
+(*   (*Let*) *)
+(*   - forwards [tx NIL__tx]: atom_fresh L. *)
+(*     forwards [x NIL__x]: atom_fresh (L ∪ {{tx}} ∪ E_O_names ψ__in'). *)
+
+(*     forwards [ψ' [Inf1' REL1]]: IHInf. eassumption. *)
+(*     forwards [ψ__out'' [Inf2' REL2']]: H0 tx x. fsetdec. fsetdec. *)
+(*       norm. repeat rewrite <- E_app_assoc. apply R_app_proper. eassumption. reflexivity. *)
+(*     forwards SL: Inf_SameLength. applys H x tx. fsetdec. fsetdec. simpl+ in SL. inverts SL. *)
+(*     forwards [ψ__out' [EQ REL2]]: R__destr. norm in REL2'. rewrite <- E_app_assoc in REL2'. apply REL2'. apply REL1. eassumption. subst. clear REL2'. *)
+(*     simpl+ in Inf2'. *)
+(*     asserts_rewrite (tx = x) in Inf2'. admit. *)
+(*     assert (x ∉ E_O_names ψ'). erewrite <- E_O_names_Inf. 2:apply Inf1'. fsetdec. *)
+(*     forwards [L' Inf2'']: Inf_subst_name_head'. apply Inf2'. apply notin_union. eassumption. rewrite ftv_Tm__close_Tm_wrt_A. *)
+(*       forwards [_ [_ FTV]]: Inf_wf__t. apply Inf1'. rewrite FTV. rewrite E_O_names_E_names. eassumption. *)
+(*     exists. splits. *)
+(*     + applys Inf__Let L'. eassumption. intros ty NIL__ty y NIL__y. *)
+(*       asserts_rewrite (ty = y). admit. applys Inf2''. fsetdec. *)
+(*     + eassumption. *)
+(* Qed. *)
+(* End InfWeakening. *)
+
+(* Section Inf_Weaken_ANil. *)
+(*   Fact Insert_ANil_at_app_proper : forall n, Proper (Insert_ANil_at n ==> eq ==> Insert_ANil_at n) E__app. *)
+(*   Proof. intro. autounfold. intros ψ1 ψ2 IN ? ψ3 EQ. subst. induction ψ3; crush. Qed. *)
+(*   #[local] Hint Resolve Insert_ANil_at_app_proper : core. *)
+
+(*   Lemma Insert_ANil_at__var : forall n, forall ψ ψ' *)
+(*                       σ x t a τ, *)
+(*       Insert_ANil_at n ψ ψ' *)
+(*     -> (σ, x) ∈σx E_bindings ψ *)
+(*     -> Inst (t__Var_f x) σ t a τ (E_A_skvars ψ) *)
+(*     -> exists σ', *)
+(*         (σ', x) ∈σx E_bindings ψ' *)
+(*       /\ Inst (t__Var_f x) σ' t a τ (E_A_skvars ψ'). *)
+(*   Proof. *)
+(*     introv IA IN INST. forwards [ψ'' [ψ''' [EQ1 EQ2]]]: Insert_ANil_at_destr. eassumption. subst. *)
+(*     exists σ. split. *)
+(*     - clear - IN. simpl+ in *. eassumption. *)
+(*     - clear - INST. simpl+ in *. eassumption. *)
+(*   Qed. *)
+(*   #[local] Hint Resolve Insert_ANil_at__var : core. *)
+
+(*   Lemma Insert_ANil_at__fv : forall n, forall ψ ψ' *)
+(*                     α, *)
+(*       Insert_ANil_at n ψ ψ' *)
+(*     -> α ∉ E_A_O_skvars ψ *)
+(*     -> α ∉ E_A_O_skvars ψ'. *)
+(*   Proof. *)
+(*     introv IA NIE. forwards [ψ'' [ψ''' [EQ1 EQ2]]]: Insert_ANil_at_destr. eassumption. subst. *)
+(*     clear - NIE. simpl+ in *. eassumption. *)
+(*   Qed. *)
+(*   #[local] Hint Resolve Insert_ANil_at__fv : core. *)
+
+(*   Lemma Insert_ANil_at__destr : forall n, forall ψ__in ψ__in' ψ__out ψ__out' ψ__cons, *)
+(*      Insert_ANil_at n (ψ__out +++ ψ__cons) ψ__out' *)
+(*     -> Insert_ANil_at n ψ__in ψ__in' *)
+(*     -> SameLength__E ψ__in ψ__out *)
+(*     -> exists ψ__out'', ψ__out' = ψ__out'' +++ ψ__cons *)
+(*               /\ Insert_ANil_at n ψ__out ψ__out''. *)
+(*   Proof. *)
+(*     introv IN2 IN1 SL. *)
+(*     assert (L: n <= E_length ψ__out). rewrite <- SL. eauto using Insert_ANil_at_smaller. *)
+(*     gen ψ__out'. induction ψ__cons; intros. *)
+(*     - simpl+ in IN2. exists. simpl+. crush. *)
+(*     - inverts IN2. simpl+ in L. crush. *)
+(*       forwards [ψ__out' [EQ IA]]: IHψ__cons. eassumption. *)
+(*       exists. splits; simpl+; crush. *)
+(*     - inverts IN2. simpl+ in L. crush. *)
+(*       forwards [ψ__out' [EQ IA]]: IHψ__cons. eassumption. *)
+(*       exists. splits; simpl+; crush. *)
+(*     - inverts IN2. simpl+ in L. crush. *)
+(*       forwards [ψ__out' [EQ IA]]: IHψ__cons. eassumption. *)
+(*       exists. splits; simpl+; crush. *)
+(*   Qed. *)
+(*   #[local] Hint Resolve Insert_ANil_at__destr : core. *)
+
+(*   Lemma Inf_Insert_ANil_at : forall n ψ__in ψ__in' e a τ t ψ__out, *)
+(*       ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out *)
+(*     -> Insert_ANil_at n ψ__in ψ__in' *)
+(*     -> exists ψ__out', ψ__in' ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out' *)
+(*              /\ Insert_ANil_at n ψ__out ψ__out'. *)
+(*   Proof. introv INF IA. eauto using Inf_R. Qed. *)
+
+(*   Corollary Inf_weaken_ANil : forall ψ__in1 ψ__in2 e a τ t ψ__out, *)
+(*       ψ__in1 +++ ψ__in2 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out *)
+(*     -> exists ψ__out', (ψ__in1 ::a []) +++ ψ__in2 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out' *)
+(*              /\ Insert_ANil_at (E_length ψ__in1) ψ__out ψ__out'. *)
+(*   Proof. *)
+(*     introv INF. *)
+(*     forwards [ψ__in' IA]: Insert_ANil_at_create (E_length ψ__in1) (ψ__in1 +++ ψ__in2). crush. *)
+(*     forwards [ψ__out'' [INF' IA']]: Inf_Insert_ANil_at (E_length ψ__in1). eassumption. eassumption. *)
+(*     exists. splits. 2:eassumption. applys_eq INF'. symmetry. eapply Insert_ANil_at_app_destr. eassumption. *)
+(*   Qed. *)
+
+(*   Corollary Inf_weaken_ANil' : forall ψ__in1 ψ__in2 ψ__out1 ψ__out2 e a τ t, *)
+(*       ψ__in1 +++ ψ__in2 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out1 +++ ψ__out2 *)
+(*     -> SameLength__E ψ__in1 ψ__out1 *)
+(*     -> (ψ__in1 ::a []) +++ ψ__in2 ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ (ψ__out1 ::a []) +++ ψ__out2. *)
+(*   Proof. *)
+(*     introv INF SL. *)
+(*     forwards [ψ__out' [INF' IA]]: Inf_weaken_ANil. eassumption. *)
+(*     applys_eq INF'. symmetry. eapply Insert_ANil_at_app_destr. crush. *)
+(*   Qed. *)
+(* End Inf_Weaken_ANil. *)
+
+(* Lemma WfS_open_Sc_wrt_T : forall σ τ ψ, *)
+(*     ψ ⊢wfσ σ *)
+(*   -> ψ ⊢wfτ τ *)
+(*   -> ψ ⊢wfσ open_Sc_wrt_T σ τ. *)
+(* Proof. *)
+(*   intros. split. crush. rewrite fsk_Sc_open_Sc_wrt_T_upper. *)
+(*   apply WfS_sk in H. apply WfT_sk in H0. fsetdec. *)
+(* Qed. *)

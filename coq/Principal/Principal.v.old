@@ -1,0 +1,301 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.E.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Lc.
+Require Import Defs.List.
+Require Import Defs.OpenClose.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.Subst.
+Require Import Defs.Subst.rename_var.
+Require Import Defs.SubSump.
+Require Import Defs.TmTy.
+Require Import Defs.WfE.
+
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.LogRelEProps.
+Require Import Semantics.FundProp.CompatTLam.
+
+Axiom notin_union_iff : forall α L1 L2,
+    α ∉ L1
+  -> α ∉ L2
+  -> α ∉ L1 ∪ L2.
+(*** exists in subsumpprop*)
+
+Inductive DecTopLevel' : A -> Ex -> Sc -> Tm -> Prop :=    (* defn DecTopLevel *)
+ | DecTL__M : forall (a:A) (e:Ex) (τ:T) (t:Tm)
+     (DEC: Dec (oneA a) e τ t),
+     DecTopLevel' a e (S__T τ) t
+ | DecTL__Forall : forall (L:vars) (a:A) (e:Ex) (σ:Sc) (t:Tm)
+     (DECTL: forall α, α ∉ L -> DecTopLevel' (a ++ [α]) e (open_Sc_wrt_T σ (T__Var_f α)) (open_Tm_wrt_T t (T__Var_f α))),
+     DecTopLevel' a e (S__Forall σ) (t__TLam t).
+
+Definition DecTopLevel (e:Ex) (σ:Sc) (t:Tm) := DecTopLevel' [] e σ t.
+Definition DecTopLevelHDM (e:Ex) (σ:Sc) := exists (t:Tm), DecTopLevel' [] e σ t.
+
+Definition typable_tl (e:Ex) :=
+  exists (σ:Sc) (t:Tm), DecTopLevel e σ t.
+
+Definition principal_tl_HDM (e:Ex) (σ__p:Sc) :=
+    DecTopLevelHDM e σ__p
+  /\ forall σ, DecTopLevelHDM e σ
+       -> SubSump' • σ__p σ.
+
+Definition principal_tl (e:Ex) (σ__p:Sc) (t__p:Tm) :=
+    DecTopLevel e σ__p t__p
+  /\ forall σ t,
+      DecTopLevel e σ t
+    -> exists t', SubSumpTm' • t__p σ__p t' σ
+          /\ • ⊢t≈ t ≈ t' ▸ σ.
+
+Axiom hm_principal_types : forall e,
+    typable_tl e
+  -> exists σ__p, principal_tl_HDM e σ__p.
+
+Lemma DecTopLevel_Dec_open : forall a1 e σ t L,
+    DecTopLevel' a1 e σ t
+  -> exists a2 τ t', Dec (oneA (a1 ++ a2)) e τ t'
+              /\ a2 ### L
+              /\ σ = (∀ a2⬪ (S__T τ))
+              /\ t = (Λ a2⬪ t').
+Proof.
+  introv TL. gen L. induction TL; intros. exists (nil:A). exists. splits; simpl+; crush.
+  forwards [α NIL__α]: atom_fresh (L ∪ L0 ∪ fv__α(σ) ∪ fv__α(t0)).
+  specializes H α (L ∪ L0 ∪ {{α}}).
+  destruct H as [a2 [τ [τ' [DEC [FRA [EQ1 EQ2]]]]]].
+  exists (α :: a2). exists. splits.
+  3:simpl+; rewrite <- EQ1; rewrite close_Sc_wrt_T_open_Sc_wrt_T; try reflexivity; fsetdec.
+  3:simpl+; rewrite <- EQ2; rewrite close_Tm_wrt_T_open_Tm_wrt_T; try reflexivity; fsetdec.
+  - applys_eq DEC. simpl+. reflexivity.
+  - apply FrA_cons. split. applys FrA_L_sub FRA. fsetdec.
+    apply notin_union_iff. fsetdec. destruct FRA.
+    in_disj.
+Qed.
+
+Lemma DecTopLevel_Dec : forall e σ t L,
+    DecTopLevel e σ t
+  -> exists a τ t', Dec (oneA a) e τ t'
+              /\ a ### L
+              /\ σ = (∀ a⬪ (S__T τ))
+              /\ t = (Λ a⬪ t').
+Proof.
+  introv TL. unfolds in TL. eapply DecTopLevel_Dec_open in TL.
+  destruct TL as [a [τ [t' [DEC [FRA [EQ1 EQ2]]]]]]. simpl+ in *.
+  exists. crush.
+Qed.
+
+(* Lemma DecTopLevel_Dec : forall e σ t L, *)
+(*     DecTopLevel e σ t *)
+(*   -> exists a τ t', a ### L *)
+(*             /\ σ = (∀ a⬪ (S__T τ)) *)
+(*             /\ t = (Λ a⬪ t') *)
+(*             /\ Dec (oneA a) e τ t'. *)
+(* Proof. *)
+(*   introv TL. gen L. unfold DecTopLevel in *.  induction TL; intros. *)
+(*   exists ([]:A) τ t0. simpl+. splits; crush. *)
+(*   forwards [α NIL__α]: atom_fresh (L ∪ L0 ∪ fv__α(σ) ∪ fv__α(t0)). *)
+(*   specializes H α (L ∪ L0 ∪ {{α}}). *)
+(*   destruct H as [a [τ [τ' [FRA [EQ1 EQ2]]]]]. *)
+(*   exists (α :: a). exists. splits. apply FrA_cons. splits. *)
+(*   eapply FrA_L_sub. eassumption. fsetdec. *)
+(*   assert (α ∉ varl a). apply FrA_props2 in FRA. in_disj. fsetdec. *)
+(*   simpl+. rewrite <- EQ1. rewrite close_Sc_wrt_T_open_Sc_wrt_T. reflexivity. fsetdec. *)
+(*   simpl+. rewrite <- EQ2. rewrite close_Tm_wrt_T_open_Tm_wrt_T. reflexivity. fsetdec. *)
+(* Qed. *)
+
+Lemma DecTopLevel_WfT : forall e σ t,
+    DecTopLevel e σ t
+  -> • ⊢t t ▸ σ.
+Admitted.
+(* Proof. *)
+(*   introv DTL. induction DTL. eapply Dec_TmTy. eassumption. *)
+(*   applys TmTy__TAbs L. intros α NIL__α. eauto. *)
+(* Qed. *)
+
+
+(* Require Import Semantics.SubSumpProp. *)
+Lemma SubSump'_Forall_A_equiv_Lambda_A''' : forall a2 ψ t τ θ,
+      SubSump' ψ (∀ (Sub_to_A θ)⬪ (S__T τ)) (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    -> ψ ⊢t (Λ (Sub_to_A θ)⬪ t) ▸ (∀ (Sub_to_A θ)⬪ (S__T τ))
+    -> dom_Sub θ ∐ varl a2
+    -> dom_Sub θ ≡ fv__α(τ)
+    -> (Sub_to_A θ) ### E_skvars ψ
+    -> exists t', SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t) (∀ (Sub_to_A θ)⬪ (S__T τ)) t' (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+          /\ ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t⟧ ≈ t' ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Admitted.
+
+Require Import Defs.Dec.
+
+Lemma SubSumpTm_fsk : forall ψ t1 σ t2 τ,
+    SubSumpTm ψ t1 σ t2 τ
+  -> fv__α(t1) ≡ fv__α(t2).
+Proof.
+  introv SS. induction SS. crush.
+  simpl+ in IHSS.
+Abort.
+
+Lemma Dec_fsk : forall ψ e τ t,
+    ψ ⊢d e ▸ τ ⤳ t
+  -> fv__α(τ) ≡ fv__α(t).
+Proof.
+  introv DEC. induction DEC.
+  -
+    (* eapply SubSumpTm_fsk. eassumption. *)
+    Abort.
+
+Lemma subst_property: forall (a1 : A) (τ__p : T) (t__p : Tm) (a2 : A) (τ : T) (t0 : Tm), exists θ : list (T * skvar), Sub_to_A θ = a1 /\ skvars_codom_Sub θ = varl a2 /\ τ = ⟦θ ▹ τ__p⟧ /\ t0 = ⟦θ ▹ t__p⟧.
+Admitted.
+
+
+(* Lemma subst_property' : forall (a1 : A) (τ__p : T) (t__p : Tm) (a2 : A) (τ : T) (t0 : Tm), exists θ : list (T * skvar), Sub_to_A θ = a1 /\ skvars_codom_Sub θ = varl a2 /\ τ = ⟦θ ▹ τ__p⟧. *)
+(* Admitted. *)
+
+Lemma SubSump_Sub : forall a ψ τ1 τ2,
+    SubSump ψ (∀ a⬪ S__T τ1) τ2
+  -> FrA a (E_A_skvars ψ)
+  -> exists θ,
+      Sub_to_A θ = a
+    /\ ψ ⊢θ θ
+    /\ ⟦θ ▹ τ1⟧ = τ2.
+Admitted.
+
+Lemma SubSump'_rename_skvar : forall α β ψ σ1 σ2,
+    SubSump' ψ σ1 σ2
+  -> SubSump' ({β ↤ α} ψ) ({T__Var_f β ≔ α}σ1) ({T__Var_f β ≔ α}σ2).
+Admitted.
+
+Lemma subst_skvar_T_id : forall α (τ:T),
+    {T__Var_f α ≔ α}τ = τ.
+Proof. intros. induction τ; simpl+. 1,3,4,5:crush. if_taut. Qed.
+#[export] Hint Rewrite subst_skvar_T_id : core.
+
+Lemma subst_skvar_Sc_id : forall α (σ:Sc),
+    {T__Var_f α ≔ α}σ = σ.
+Proof. intros. induction σ; simpl+; crush. Qed.
+#[export] Hint Rewrite subst_skvar_Sc_id : core.
+
+Lemma wf_Sub_E_sk_sub : forall ψ1 ψ2 θ,
+    ψ1 ⊢θ θ
+  -> ψ1 ⊆ψα ψ2
+  -> ψ2 ⊢θ θ.
+Admitted.
+
+Lemma SubSump'_Sub : forall a2 a1  ψ τ1 τ2,
+    SubSump' ψ (∀ a1⬪ S__T τ1) (∀ a2⬪ S__T τ2)
+  -> FrA a1 (E_A_skvars ψ)
+  -> FrA a2 (E_A_skvars ψ ∪ varl a1)
+  -> exists θ,
+      Sub_to_A θ = a1
+    /\ ψ ::a a2 ⊢θ θ
+    /\ ⟦θ ▹ τ1⟧ = τ2.
+Proof.
+  intro a2. ind_a a2; introv SS FR1 FR2; simpl+ in SS; inverts SS.
+  - eapply SubSump_Sub in SS0. 2:assumption. destruct SS0 as [θ [EQ1 [SWF EQ2]]]. exists. splits. 1,3:crush.
+    eapply wf_Sub_E_sk_sub. eassumption. unfolds. simpl+. fsetdec.
+  - forwards [β NIL__β]: atom_fresh (L ∪ E_skvars ψ ∪ fv__α(∀ a2 ⬪ S__T τ2) ∪ fv__α(∀ a1 ⬪ S__T τ1)).
+    specializes SS0 β. specializes SS0. fsetdec.
+    (**)
+    eapply (SubSump'_rename_skvar β α) in SS0.
+    forwards [θ [EQ1 [SWF EQ2]]]: IHa2 a1 (ψ ::a [α]) τ1 τ2. applys_eq SS0; symmetry.
+    + simpl+. fequals. apply rename_skvar_E_notin. fsetdec.
+    + subst_notin.
+    + rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_subst_skvar_Sc_samevar. simpl+. crush. fsetdec.
+    + simpl+. eapply FrA_L_sub. apply FrA_shift. applys FrA_cons α. split. eassumption.
+      inverts FR2. simpl+ in H0. applys in_disj1. eassumption. fsetdec. fsetdec.
+    + simpl+. eapply FrA_L_sub. apply FrA_shift. applys FrA_cons α. split. eapply FrA_cons1 in FR2. eassumption.
+      inverts FR2. simpl+ in H0. eapply notin_union_iff. applys in_disj1. eassumption. fsetdec.
+      inverts H. eauto. fsetdec.
+    + exists. splits. 1,3:eauto. eapply wf_Sub_E_sk_sub. eassumption. unfolds. simpl+. fsetdec.
+Qed.
+
+Lemma SubSumpTm'_Forall_A_equiv_Lambda_A : forall a2 a1 ψ t1 τ θ,
+    SubSump' ψ (∀ a1⬪ (S__T τ)) (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+  -> exists t2,
+      SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t1) (∀ (Sub_to_A θ)⬪ (S__T τ)) t2 (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    /\ ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t1⟧ ≈ t2 ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Admitted.
+
+Lemma EquivRel_symm : forall ψ t1 t2 σ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t2 ≈ t1 ▸ σ.
+Admitted.
+
+Lemma EquivRel_trans : forall ψ t1 t2 t3 σ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t2 ≈ t3 ▸ σ
+  -> ψ ⊢t≈ t1 ≈ t3 ▸ σ.
+Admitted.
+
+(* Theorem *)
+Require Import Semantics.FundProp.
+
+(* Lemma SuSump_equiv : forall, *)
+(* Lemma Dec_subst_elab_equiv : forall e, *)
+(*     lc(e) *)
+(*   -> forall  ψ ψ' τ__p t__p t θ, *)
+(*       ψ ⊢d e ▸ τ__p ⤳ t__p *)
+(*     -> ψ ⊢d e ▸ τ ⤳ t *)
+(*     ->  *)
+
+Lemma Dec_subst_elab_equiv : forall e,
+    lc(e)
+  -> forall  ψ ψ' τ__p t__p t θ,
+      ψ ⊢d e ▸ τ__p ⤳ t__p
+    -> ψ' ⊢d e ▸ ⟦θ ▹ τ__p⟧ ⤳ t
+    -> ψ' ⊢t≈ ⟦θ ▹ t__p⟧ ≈ t ▸ ⟦θ ▹ S__T τ__p⟧.
+Proof.
+  introv E. induction E; introv DEC__p DEC.
+  - inverts DEC__p. inverts DEC.
+    admit.
+  - inverts DEC__p. inverts DEC.
+    simpl+. eapply CompatUnit.
+  - inverts DEC__p. inverts DEC. simpl+.
+
+    rename DEC1 into DEC__p1. rename DEC2 into DEC__p2. rename t1 into t__p1. rename t2 into t__p2.
+    rename DEC0 into DEC1. rename DEC3 into DEC2. rename t3 into t1. rename t4 into t2.
+
+    assert (exists t1' t2', ψ' ⊢d e1 ▸ T__Fun ⟦θ ▹ τ1⟧ ⟦θ ▹ τ__p⟧ ⤳ t1'
+                     /\ ψ' ⊢d e2 ▸ ⟦θ ▹ τ1⟧ ⤳ t2'
+                     /\ ψ' ⊢t≈ t__App t1 t2 ≈ t__App t1' t2' ▸ S__T ⟦θ ▹ τ__p⟧). admit.
+    destruct H as [t1' [t2' [DEC1' [DEC2' EQUIV]]]].
+
+    specializes IHE1 θ. specializes IHE1. applys_eq DEC__p1. applys_eq DEC1'. simpl+. reflexivity.
+    specializes IHE2 θ. specializes IHE2. applys_eq DEC__p2. applys_eq DEC2'.
+
+    eapply EquivRel_trans. eapply CompatApp. applys_eq IHE1. simpl+. reflexivity. eassumption.
+    eapply EquivRel_symm. assumption.
+  - simpl+. simpl+ in H4. inverts H4.
+    (* assert (⟦θ ▹ τ1⟧ = τ0). admit. subst. *)
+    applys CompatLam (L ∪ L0). 2:assumption. intros x NIL__x.
+    specializes H0 x. applys_eq H0. rewrite Sub_app_Tm_open_Tm_wrt_Tm. fequals. rewrite Sub_app_Tm_Tvar_f. reflexivity.
+    applys_eq DEC0. fsetdec.
+    applys_eq DEC1. fsetdec.
+  - admit.
+
+Theorem elab_principal_types : forall e,
+    typable_tl e
+  -> exists σ__p t__p, principal_tl e σ__p t__p.
+Proof.
+  introv TYP. forwards [σ__p [[t__p' TL__p] PRIN]]: hm_principal_types TYP.
+  exists σ__p t__p'. splits. eauto.
+  intros σ t' TL. specializes PRIN. exists. applys_eq TL.
+  forwards [a__p [τ__p [t__p [DEC__p [FR__p [EQ__τp EQ__tp]]]]]]: DecTopLevel_Dec empty TL__p.
+  forwards [a  [τ  [t  [DEC  [FR  [EQ1  EQ2 ]]]]]]: DecTopLevel_Dec (varl a__p) TL. subst.
+  forwards [θ [EQ1 [SWF EQ2]]]: SubSump'_Sub. eassumption. simpl+. eassumption. simpl+. eassumption.
+  subst.
+  (**)
+  forwards [t' [SST EQUIV]]: SubSumpTm'_Forall_A_equiv_Lambda_A t__p. applys_eq PRIN.
+  exists. split. eassumption.
+  eapply EquivRel_trans. 2:eassumption.
+
+  remember (Sub_to_A θ) as a1.
+
+  inverts TL__p.
+Qed.
+Print Assumptions elab_principal_types.

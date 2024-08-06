@@ -1,0 +1,21 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+
+Require Import Defs.TmTy.
+
+Require Import Semantics.EquivRel.
+
+Require Export Semantics.FundProp.CompatVar.
+Require Export Semantics.FundProp.CompatUnitTrueFalse.
+Require Export Semantics.FundProp.CompatLam.
+Require Export Semantics.FundProp.CompatApp.
+Require Export Semantics.FundProp.CompatTLam.
+Require Export Semantics.FundProp.CompatTApp.
+
+Theorem FundamentalProperty : forall ψ t σ,
+    ψ  ⊢t t ▸ σ
+  -> ψ  ⊢t≈ t ≈ t ▸ σ.
+Proof.
+  introv TMTY. induction TMTY; eauto using CompatVar, CompatUnit, CompatTrue, CompatFalse, CompatLam, CompatApp, CompatTLam, CompatTApp.
+Qed.

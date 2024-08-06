@@ -1,0 +1,1615 @@
+indexvar   index, in, out, dec, alg ::= {{ coq nat }}
+
+metavar   var
+        , x {{ tex x }}
+        ::= {{ com expression variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   tvar
+        , tx {{ tex x }}
+        ::= {{ com term variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+% metavar   fvar
+%         , fx {{ tex x }}
+%         ::= {{ com SystemF variable }}
+%             {{ coq-equality apply eq_dec. }}
+%             {{ coq-equality }}
+%             {{ lex alphanum}}
+%             {{ repr-locally-nameless }}
+
+metavar   skvar
+        , alpha {{ tex \alpha }}
+        , beta {{ tex \beta }}
+        ::= {{ com skollem variable }} {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+% metavar   fskvar
+%         , falpha {{ tex \alpha }}
+%         ::= {{ com SystemF skollem variable }} {{ coq-equality apply eq_dec. }}
+%             {{ coq-equality }}
+%             {{ lex alphanum}}
+%             {{ repr-locally-nameless }}
+
+grammar
+  Ex, e {{ tex e }} :: 'e__' ::= {{ com Terms }} {{ coq-equality }}
+    | x                    ::   :: Var                     {{ com Term variable }}
+    | unit                 ::   :: Unit                    {{ com Unit }}
+    | e1 e2                ::   :: App                     {{ com Term Application }}
+    | \ x . e              ::   :: Lam (+ bind x in e  +)  {{ com Term Abstraction }}
+    | let x = e1 inlet e2  ::   :: Let (+ bind x in e2 +)  {{ com Let }}
+
+  T, tau {{ tex \tau }} :: 'T__' ::= {{ com Types }} {{ coq-equality }}
+    | alpha        ::   :: Var   {{ com Type variable }}
+    | Unit         ::   :: Unit  {{ com Unit }}
+    | Bool         ::   :: Bool  {{ com Bool }}
+    | tau1 -> tau2 ::   :: Fun   {{ com Function }}
+    | ( tau )      :: S :: Paren {{ com Parenthesis }} {{ icho [[tau]] }}
+
+  Sc, sigma {{ tex \sigma }} :: 'S__' ::= {{ com Type schemes }} {{ coq-equality }}
+    | tau                    ::   :: T                                {{ com Monotype }}
+    | forall alpha . sigma   ::   :: Forall (+ bind alpha in sigma +) {{ com Forall }}
+    | [ tau / alpha ] sigma  :: M :: SubstSk                          {{ com Type substitution }}
+                                                                      {{ coq ( subst [[tau]] [[alpha]] [[sigma]] ) }}
+    | { tau / alpha } sigma  :: M :: SubstSkNoOpen                    {{ com Non-opening Type substitution }}
+                                                                      {{ coq ( open_Sc_wrt_T [[alpha sigma]] [[tau]] ) }}
+    | theta sigma            :: M :: SubstSub                         {{ com Multiple Type substitution }}
+                                                                      {{ coq ( ⟦ [[theta]] ▹ [[sigma]] ⟧ ) }}
+    | close a tau            :: M :: Close                            {{ com Closing w.r.t. A }}
+                                                                      {{ tex \forall [[a]] . [[tau]] }}
+                                                                      {{ coq (close_Sc_wrt_A ( S__T [[tau]] ) [[a]]) }}
+
+  % Ev :: 'Ev__' ::= {{ coq Bool }}
+
+  Tm, t {{ tex t }} , v :: 't__' ::= {{ com Elaborated terms }} {{ coq-equality }}
+    | tx                               ::   :: Var                        {{ com Term variable }}
+    | unit                             ::   :: Unit                       {{ com Unit }}
+    | true                             ::   :: True                       {{ com True }}
+    | false                            ::   :: False                      {{ com False }}
+    | t1 t2                            ::   :: App                        {{ com Term Application }}
+    | t [ tau ]                        ::   :: TApp                       {{ com Type Application }}
+    | \ ( tx : tau ) . t               ::   :: Lam  (+ bind tx  in t +)   {{ com Term Abstraction }}
+    % | \ ( tx : sigma ) . t             ::   :: Lam  (+ bind tx  in t +)   {{ com Term Abstraction }}
+    | \\ alpha . t                     ::   :: TLam (+ bind alpha in t +) {{ com Type Abstraction }}
+    % | let ( tx : sigma ) = t1 inlet t2 ::   :: Let  (+ bind tx  in t2 +)  {{ com Let }}
+    | ( t )                            :: S :: Paren                      {{ com Parenthesis }} {{ icho [[t]] }}
+    | [ t1 / tx ] t2                   :: M :: TmSubst                    {{ com Type substitution }}
+                                                                          {{ coq ( subst__x [[t1]] [[tx]] [[t2]]) }}
+    | [ t1 / x  ] t2                   :: M :: TmSubst2                   {{ com Type substitution }}
+                                                                          {{ coq ( subst__x [[t1]] [[x]] [[t2]]) }}
+    | [ tau / alpha ] t                :: M :: TySubst                    {{ com Type substitution }}
+                                                                          {{ coq ( subst [[tau]] [[alpha]] [[t]]) }}
+    | theta t                          :: M :: SubstSub                   {{ com Multiple Type substitution }}
+                                                                          {{ coq ( ⟦ [[theta]] ▹ [[t]] ⟧ ) }}
+    | close a t                        :: M :: CloseA                     {{ com Closing w.r.t. A }}
+                                                                          {{ tex \Lambda [[a]] . [[t]] }}
+                                                                          {{ coq (close_Tm_wrt_A [[t]] [[a]]) }}
+    | openvar t x                      :: M :: OpenVar                    {{ com Closing w.r.t. x }}
+                                                                          {{ tex [[t]] }}
+                                                                          {{ coq (open_Tm_wrt_Tm [[t]] (t__Var_f [[x]])) }}
+    | opensub t1 t2 x                  :: M :: OpenSub                    {{ com Fake substitution }}
+                                                                          {{ tex [ [[t2]] / [[x]] ] [[t1]] }}
+                                                                          {{ coq (open_Tm_wrt_Tm [[t1]] [[t2]]) }}
+    | x                                :: M :: EVar                       {{ com Term variable }}
+                                                                          {{ coq (t__Var_f [[x]]) }}
+    | \ ( x : tau ) . t                :: M :: LamX                       {{ coq (t__Lam [[tau]] [[t]]) }}
+    % | \ ( x : sigma ) . t              :: M :: LamX                       {{ coq (t__Lam [[sigma]] [[t]]) }}
+
+
+    % | Ev [ t ]                         :: M :: EVCtx                      {{ com Term variable }}
+    %                                                                       {{ coq False }}
+
+  % FT {{ tex T }} :: 'FT__' ::= {{ com SystemF Types }} {{ coq-equality }}
+  %   | falpha               ::   :: var                            {{ com Type variable }}
+  %   | Unit                 ::   :: Unit                           {{ com Unit }}
+  %   | FT1 -> FT2           ::   :: Fun                            {{ com Function }}
+  %   | forall falpha . FT   ::   :: Forall (+ bind falpha in FT +) {{ com Forall }}
+  %   | [ FT1 / falpha ] FT2 :: M :: Subst                          {{ com Type substitution }}
+  %                                                                 {{ coq ( subst [[FT1]] [[falpha]] [[FT2]] ) }}
+  % EvF :: 'EvF__' ::= {{ coq Bool }}
+
+  % FTm, ft {{ tex t }}, fv {{ tex v }} :: 'ft__' ::= {{ com SystemF terms }} {{ coq-equality }}
+  %   | fx                 ::   :: Tvar                          {{ com Term variable }}
+  %   | unit               ::   :: Unit                          {{ com Unit }}
+  %   | ft1 ft2            ::   :: App                           {{ com Application }}
+  %   | ft [ FT ]          ::   :: TApp                          {{ com Application }}
+  %   | \ ( fx : FT ) . ft ::   :: Lam   (+ bind fx in ft +)     {{ com Abstraction }}
+  %   | \\ falpha . ft     ::   :: TLam  (+ bind falpha in ft +) {{ com Type Abstraction }}
+  %   | ( ft )             :: S :: Paren                         {{ com Parenthesis }} {{ icho [[ft]] }}
+  %   | [ ft / fx ] fv     :: M :: TmSubst                       {{ com Term substitution }}
+  %                                                              {{ coq (subst__x [[ft]] [[fx]] [[fv]] ) }}
+  %   | [ FT / falpha ] fv :: M :: TySubst                       {{ com Type substitution }}
+  %                                                              {{ coq (subst [[FT]] [[falpha]] [[fv]] ) }}
+  %   % | EvF [ ft ]         :: M :: EvFCtx                         {{ com Fill evaulation context }} {{ coq False }}
+
+substitutions
+  single e  var   :: subst_var
+  % single ft fvar  :: subst_fvar
+
+  single tau skvar  :: subst_skvar
+  % single FT  fskvar :: subst_fskvar
+
+  single Tm tvar  :: subst_tvar
+
+freevars
+  e  var   :: fv
+  % ft fvar  :: ffv
+
+  tau skvar  :: fsk
+  % FT  fskvar :: ftsk
+
+  t tvar  :: ftv
+
+grammar
+  A, a {{ tex A }} :: 'A__' ::=  {{ com Type variable list }} {{ coq list skvar }}
+    | bullet           :: M :: Nil   {{ com Empty A     }} {{ coq nil }}
+    | a ; alpha        :: M :: Cons  {{ com Cons A      }} {{ coq ( cons [[alpha]] [[a]] ) }}
+    | ( a )            :: M :: Paren {{ com Parenthesis }} {{ icho [[a]]  }}
+    | < alpha >        :: M :: One   {{ com Singleton   }} {{ coq ( [[alpha]] :: nil ) }}
+    | < alpha ; beta > :: M :: Two   {{ com Twingleton  }} {{ coq ( cons [[beta]] ([[alpha]] :: nil) ) }}
+    | a1 ++ a2         :: M :: App   {{ com Append      }} {{ coq ( [[a2]] ++ [[a1]] ) }}
+
+  E, psi {{ tex \Psi }} :: 'E__' ::= {{ com Environment }}
+    | bullet                    ::   :: Nil    {{ com Empty environment }}
+    | psi ; a                   ::   :: A      {{ com Cons Existential environment }}
+    | psi ; x : sigma           ::   :: Var    {{ com Cons Variable }}
+    | psi ; tx : sigma          :: M :: VarTx  {{ coq (E__Var [[psi]] [[tx]] [[sigma]]) }}
+    | psi ; { t : [ a ] sigma } ::   :: O      {{ com Cons Object }}
+    | psi ; { t :       sigma } :: S :: ONoA   {{ com Cons Object without a }}
+                                               {{ coq (E__O [[psi]] [[t]] (nil:A) [[sigma]]) }}
+    | psi ; { t           }     :: M :: Oonlyt {{ com Cons Object only t }}
+                                               {{ coq (E__O [[psi]] [[t]] (nil:A) (S__T T__Unit)) }}
+    | psi ; {       a     }     :: M :: OonlyA {{ com Cons Object only a }}
+                                               {{ coq (E__O [[psi]] t__Unit [[a]] (S__T T__Unit)) }}
+    | psi1 + psi2               :: M :: App    {{ com Eironment append }}
+                                               {{ coq (E__app [[psi1]] [[psi2]]) }}
+    | append psi alpha          :: M :: SkApp  {{ com Typevar append }}
+                                               {{ coq (E_append_A_in_A [[psi]] [ [[alpha]] ] ) }}
+    | < a >                     :: M :: OneA   {{ com OneA }}
+                                               {{ coq (oneA [[a]]) }}
+    | [ tau / alpha ] psi       :: M :: TSubst {{ com Existential variable substitution }}
+                                               {{ coq ( subst [[tau]] [[alpha]] [[psi]] ) }}
+
+  Eqs, eqs {{ tex \Theta }} :: 'Eqs__' ::= {{ coq-equality }} {{ coq list (T * T) }}
+    | bullet              ::   :: Nil   {{ com Empty equaltities }}
+                                        {{ coq nil }}
+    | tau1 sim tau2 ; eqs ::   :: Cons  {{ com Cons Equality }}
+                                        {{ coq ( ([[tau1]],[[tau2]]) :: [[eqs]] ) }}
+    | < tau1 sim tau2 >   :: S :: One   {{ com Singleton }}
+                                        {{ coq ( ([[tau1]],[[tau2]]) :: nil ) }}
+    | [ tau / alpha ] eqs :: M :: Subst {{ com Existential variable substitution }}
+                                        {{ coq ( subst [[tau]] [[alpha]] [[eqs]] ) }}
+
+  E_and_Eqs {{ tex (E \vdash \Theta) }} :: 'E_and_Eqs__' ::= {{ com E and Eqs pair (for unification) }} {{ coq (E * list (T * T)) }}
+    | psi |- Eqs :: M :: Pair {{ com Pair }} {{ coq ( [[psi]] , [[Eqs]] ) }}
+
+  Sub, theta {{ tex \theta }} :: 'Sub__' ::= {{ coq-equality }} {{ coq list (T * skvar) }}
+    | bullet                    ::   :: Nil   {{ com Empty       }} {{ coq nil }}
+    | [ tau / alpha ] dot theta ::   :: Cons  {{ com Cons        }} {{ coq ( ( [[tau]], [[alpha]] ) :: [[theta]] ) }}
+    | theta1 + theta2           :: M :: App   {{ com Append      }} {{ coq ([[theta1]] ++ [[theta2]])  }}
+    | ( theta )                 :: M :: Paren {{ com Parenthesis }} {{ icho [[theta]]  }}
+
+  vars, L :: 'L__' ::= {{ coq-equality }} {{ coq atoms }}
+    | L1 \u L2 :: M :: Union {{ tex [[L1]] \cup [[L2]] }} {{ coq ([[L1]] \u  [[L2]]) }}
+    % | A        :: M :: LA    {{ tex [[A]]              }} {{ coq (varl [[A]]) }}
+    | psi      :: M :: LE    {{ tex [[psi]]            }} {{ coq (E_skvars [[psi]]) }}
+
+  % G, gamma {{ tex \Gamma }} :: 'G__' ::=
+  %   | bullet       ::   :: Nil  {{ com Empty environment }}
+  %   | G ; falpha   ::   :: FVar {{ com Cons Existential environment }}
+  %   | G ; fx :  FT ::   :: Var  {{ com Cons Existential environment }}
+
+  % EvF :: 'EvF__' ::= {{ com SystemF evaluation contexts }} {{ coq nat }}
+  %   | bullet :: M :: {{ coq False }}
+  % EvF :: 'EvF__' ::= {{ coq Bool }}
+    % | bullet       :: M :: Nil   {{ coq False }}
+    % | EvF ft        :: M :: AppL  {{ coq False }}
+    % | fv EvF        :: M :: AppR  {{ coq False }}
+    % | EvF [ FT ]    :: M :: TApp  {{ coq False }}
+
+terminals :: 'terminals_' ::=
+  | \            ::  :: lambda        {{ tex \lambda }}
+  | \\           ::  :: Lambda        {{ tex \Lambda }}
+  | -->          ::  :: red           {{ tex \longrightarrow }}
+  | -->*         ::  :: redstar       {{ tex \longrightarrow^* }}
+  | ->           ::  :: funarr        {{ tex \to }}
+  | ~>           ::  :: instarr       {{ tex \leadsto }}
+  | bullet       ::  :: bullet        {{ tex \bullet }}
+  | let          ::  :: let           {{ tex \textbf{let} }}
+  | inlet        ::  :: in            {{ tex \textbf{in} }}
+  | unit         ::  :: teUnit        {{ tex \texttt{unit} }}
+  | Unit         ::  :: tyUnit        {{ tex \texttt{Unit} }}
+  | forall       ::  :: forall        {{ tex \forall }}
+  | .            ::  :: point         {{ tex . }}
+  | |-           ::  :: turnstyle     {{ tex \vdash }}
+  | |-t          ::  :: turnstyle_tm  {{ tex \vdash_{\texttt{t} } }}
+  | |-T          ::  :: turnstyle_T   {{ tex \vdash_{\texttt{T} } }}
+  | |-Sc         ::  :: turnstyle_Sc  {{ tex \vdash_{\texttt{Sc} } }}
+  | ||-          ::  :: Vdash         {{ tex \Vdash }}
+  | ||-tl        ::  :: turnstyle_tl  {{ tex \vdash_{\texttt{tl} } }}
+  | ||-         ::  :: Vdash'        {{ tex \Vdash }}
+  | -|           ::  :: rev_turnstyle {{ tex \dashv }}
+  | sim          ::  :: sim           {{ tex \sim }}
+  | >=           ::  :: geq           {{ tex \geq }}
+  | >=d          ::  :: geq_d         {{ tex \geq_d }}
+  | >=spec       ::  :: geq_spec      {{ tex \geq_{spec} }}
+  | >=a          ::  :: geq_a         {{ tex \geq_a }}
+  | <=           ::  :: leq           {{ tex \leq }}
+  | <            ::  :: langle        {{ tex \langle }}
+  | >            ::  :: rangle        {{ tex \rangle }}
+  | dot          ::  :: composition   {{ tex \circ }}
+  | ++           ::  :: listappend    {{ tex \doubleplus  }}
+  | disj         ::  :: disjoint      {{ tex \coprod  }}
+  | |->          ::  :: mapsto        {{ tex \mapsto }}
+
+formula :: formula_ ::=
+  | judgement :: :: judgement
+
+%unordered pair membership
+  | ( tau1 sim tau2 ) equiv ( tau3 sim tau4 ) :: :: unordered_pair_lookup
+    {{ tex ( [[tau1]] , [[tau2]] ) \equiv ( [[tau3]], [[tau4]] ) }}
+    {{ coq ( ([[tau1]] = [[tau3]] /\ [[tau2]] = [[tau4]]) \/ ([[tau1]] = [[tau4]] /\ [[tau2]] = [[tau3]]) ) }}
+
+% membership
+  | alpha elem psi :: :: skvar_elem_E
+    {{ tex [[alpha]] \in [[psi]] }}
+    {{ coq ([[alpha]] ∈ (E_A_skvars [[psi]]) ) }}
+  | alpha fresh psi :: :: skvar_fresh_E
+    {{ tex [[alpha]] \# [[psi]] }}
+    {{ coq ([[alpha]] ∉ (E_skvars [[psi]])) }}
+  % | a fresh psi :: :: A_fresh_E
+  %   {{ tex [[a]] \# [[psi]] }}
+  %   {{ coq (FrA [[a]] [[psi]]) }}
+  | a fresh L :: :: skvar_fresh
+    {{ tex [[a]] \# [[L]] }}
+    {{ coq (FrA [[a]] [[L]]) }}
+  | ( x : sigma ) elem psi :: :: binding_x_elem_E
+    {{ tex ([[x]] : [[sigma]]) \in [[psi]] }}
+    {{ coq (([[sigma]], [[x]]) ∈σx (E_bindings [[psi]]) ) }}
+  | ( tx : sigma ) elem psi :: :: binding_tx_elem_E
+    {{ tex ([[tx]] : [[sigma]]) \in [[psi]] }}
+    {{ coq (([[sigma]], [[tx]]) ∈σx (E_bindings [[psi]]) ) }}
+  % | ( fx : FT ) elem gamma :: :: binding_fx_elem_G
+  %   {{ tex ([[fx]] : [[FT]]) \in [[gamma]] }}
+  %   {{ coq False }}
+  | psi ( x ) = sigma :: :: E_lookup_x
+    {{ tex [[psi]] ([[x]]) = [[sigma]] }}
+    {{ coq (E_lookup [[psi]] [[x]] = Some [[sigma]] ) }}
+  | psi ( tx ) = sigma :: :: E_lookup_tx
+    {{ tex [[psi]] ([[tx]]) = [[sigma]] }}
+    {{ coq (E_lookup [[psi]] [[tx]] = Some [[sigma]] ) }}
+% %
+  | alpha notin fv( tau ) :: :: alpha_notin_fv
+    {{ tex [[alpha]] \not\in \mathsf{fv}([[tau]]) }}
+    {{ coq ([[alpha]] ∉ fsk [[tau]] ) }}
+  | x notin psi :: :: var_not_in_E
+    {{ tex [[x]] \not\in [[psi]] }}
+    {{ coq ([[x]] ∉ E_names [[psi]] ) }}
+
+% generalisation
+  | E_and_Eqs -->* E_and_Eqs' :: :: Unification_Refl_Trans_Clos
+    {{ tex [[E_and_Eqs]] [[-->*]] [[E_and_Eqs']] }}
+    {{ coq ( (clos_refl_trans_1n (E * Eqs) Uss) [[E_and_Eqs]] [[E_and_Eqs']] ) }}
+
+% expression to term variables
+  % | tx = x                   ::   :: txx
+  %   {{ coq ( [[tx]] = [[x]] ) }}
+  %   {{ tex \vspace{-1em} }}
+
+% applying functions
+  % | sigma1 = sigma2                   ::   :: EqSc
+  %   {{ icho [[sigma1]] = [[sigma2]] }}
+  % | t1 = t2                   ::   :: Eqt
+  %   {{ icho [[t1]] = [[t2]] }}
+
+% nolc
+  | nolc psi :: :: nolcE
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc sigma  :: :: nolcsigma
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc tau   :: :: nolcT
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc t  :: :: nolct
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc gamma :: :: nolcG
+    {{ coq True }} {{ tex \vspace{-1em} }}
+
+% Wf
+  | psi |-t t :: :: Wft
+    {{ coq ([[psi]] ⊢wft [[t]]) }}
+  | psi |-T tau :: :: WfT
+    {{ coq ([[psi]] ⊢wfτ [[tau]]) }}
+  | psi |-Sc sigma :: :: WfS
+    {{ coq ([[psi]] ⊢wfσ  [[sigma]]) }}
+
+% subsump
+  | psi |- t1 : sigma >= t2 : tau :: :: SubSump
+    {{ coq (SubSumpTm [[psi]] [[t1]] [[sigma]] [[t2]] [[tau]] ) }}
+    {{ tex [[psi]] \vdash [[t1]] : [[sigma]] \geq [[t2]] : [[tau]] }}
+% SubSump with A
+  | psi ||- t1 : sigma >=d t2 : [ A ] tau :: :: SubSumpA
+    {{ coq (SubSumpTmA [[psi]] [[t1]] [[sigma]] [[t2]] [[A]] [[tau]] ) }}
+% inst
+  | psi |- t1 : sigma >=a t2 : [ a ] tau :: :: Inst
+    {{ coq (Inst [[t1]] [[sigma]] [[t2]] [[a]] [[tau]] (E_skvars [[psi]]) ) }}
+    {{ tex [[t1]] : [[sigma]] \geq_{a} [[t2]] : [ [[a]] ] [[tau]] }}
+
+  | val fv :: :: FVal
+  | val v :: :: Val
+
+% alg/dec
+  | Alg alpha :: :: AlgSkvar
+    {{ coq (alg [[alpha]]) }}
+  | Dec A :: :: DecA
+    {{ coq (dec_A [[A]]) }}
+
+% % sets
+%   | L1 = L2 \u L3 :: :: SetEa
+%     {{ coq ([[L1]] = [[L2]] \u [[L3]]) }}
+%     {{ tex [[L1]] = [[L2]] }}
+  % | blablabla L2 :: :: Union
+  %   {{ coq (\u [[L2]]) }}
+  %   {{ tex [\cup [[L2]] }}
+  % | L1 union L2 :: :: Union
+  %   {{ coq ([[L1]] \u [[L2]]) }}
+  %   {{ tex [[L1]] \cup [[L2]] }}
+  % | L union A :: :: UnionA
+  %   {{ coq ([[L]] \u A_to_Set [[A]]) }}
+  %   {{ tex [[L]] \cup [[A]] }}
+
+parsing
+  A__App <= A__Cons
+  E__App <= E__A
+  Sub__App right Sub__App
+
+embed
+{{ tex \newpage }}
+
+
+% defns
+% SystemF :: '' ::=
+
+%   defn gamma |- ft : FT
+%     :: :: F :: 'F__'
+%     {{ com Term typing }}
+%     by
+
+%       (fx : FT) elem gamma
+%       --------------------  :: Var
+%       gamma |- fx : FT
+
+%       nolc gamma
+%       ------------------------  :: Unit
+%       gamma |- unit : Unit
+
+
+%       gamma; fx : FT1 |- ft : FT2 [[:BODY]]
+%       -----------------------------------  :: Abs
+%       gamma |- \ ( fx : FT1 ) . ft : FT1 -> FT2
+
+
+%       gamma |- ft1 : FT1 -> FT2 [[:MONft1]]
+%       gamma |- ft2 : FT1 [[:MONft2]]
+%       ------------------------------  :: App
+%       gamma |- ft1 ft2 : FT2
+
+
+%       gamma; falpha |- ft : FT [[:BODY]]
+%       -----------------------------------  :: TAbs
+%       gamma |- \\ falpha . ft : forall falpha. FT
+
+
+%       gamma |- ft : forall falpha. FT2
+%       ------------------------------  :: TApp
+%       gamma |- ft [FT1] : [FT1 / falpha] FT2
+
+%   % defn ft |-> ft'
+%   %   :: :: F_SS :: 'F_SS__'
+%   %   {{ com SystemF SmallStep operational semantics }}
+%   %   by
+
+
+%   %     val fv
+%   %     ----------------------------------------  :: App
+%   %     (\ ( fx : FT ) . ft) fv |-> [fv / fx] ft
+
+
+%   %     ----------------------------------------  :: TApp
+%   %     (\\ falpha . ft) [FT] |-> [FT / falpha] ft
+
+
+%   %     ft |-> ft'
+%   %     ------------------------------  :: EvF
+%   %     EvF [ft] |-> EvF [ft']
+
+
+
+defns
+TermTyping :: '' ::=
+
+  defn psi |- t : sigma
+    :: :: TmTy :: 'TmTy__'
+    {{ com Term typing }}
+    by
+
+      psi(tx) = sigma [[:IN]]
+      --------------------  :: Var
+      psi |- tx : sigma
+
+
+      nolc psi
+      ------------------------  :: Unit
+      psi |- unit : Unit
+
+
+      nolc psi
+      ------------------------  :: True
+      psi |- true : Bool
+
+
+      nolc psi
+      ------------------------  :: False
+      psi |- false : Bool
+
+
+      psi |-T tau1 [[:WFT]]
+      psi; tx : tau1 |- t : tau2 [[:TMTY]]
+      -----------------------------------  :: Abs
+      psi |- \ ( tx : tau1 ) . t : tau1 -> tau2
+
+
+      psi |- t1 : tau1 -> tau2 [[:TMTY1]]
+      psi |- t2 : tau1 [[:TMTY2]]
+      ------------------------------  :: App
+      psi |- t1 t2 : tau2
+
+
+      psi; <alpha> |- t : sigma [[:TMTY]]
+      ------------------------------  :: TAbs
+      psi |- \\ alpha . t : forall alpha. sigma
+
+
+      psi |-T tau [[:WFT]]
+      psi |- t : forall alpha. sigma [[:TMTY]]
+      ------------------------------  :: TApp
+      psi |- t [tau] : {tau / alpha} sigma
+
+
+
+  % defn t |-> t'
+  %   :: :: SS :: 'SS__'
+  %   {{ com term SmallStep operational semantics }}
+  %   by
+
+
+  %     val t
+  %     ----------------------------------------  :: App
+  %     (\ ( tx : tau ) . t) v |-> [v / tx ] t
+
+
+  %     val t
+  %     ---------------------------------------------  :: Let
+  %     let ( tx : sigma ) = v inlet t |-> [v / tx] t
+
+
+  %     ----------------------------------------  :: TApp
+  %     (\\ alpha . t) [tau] |-> [tau / alpha] t
+
+
+  %     t |-> t'
+  %     ------------------------------  :: EvF
+  %     Ev [t] |-> Ev [t']
+
+
+defns
+WellFormedness :: '' ::=
+
+  defn wf ( psi )
+    :: :: WfE :: 'WfE__'
+    {{ com Environment Well-formedness }}
+    {{ tex \texttt{wf}([[psi]]) }}
+    by
+
+
+    ---------------  :: Nil
+    wf(bullet)
+
+
+    wf(psi) [[:WFE]]
+    A fresh psi [[:FR]]
+    ---------------  :: A
+    wf(psi; A)
+
+
+    wf(psi) [[:WFE]]
+    x notin psi
+    psi |-Sc sigma [[:WFS]]
+    ----------------  :: S
+    wf(psi; x : sigma)
+
+
+    wf(psi) [[:WFE]]
+    a fresh psi [[:FR]]
+    psi; a |-Sc sigma [[:WFS]]
+    psi; a |-t t [[:WFt]]
+    -------------------  :: O
+    wf(psi; { t : [a] sigma })
+
+defns
+Unification :: '' ::=
+
+  defn psi__in |- tau1 sim tau2 -| psi__out
+    :: :: U :: 'U__'
+    {{ com Unification Algorithm }}
+    by
+
+      psi1 |- <tau1 sim tau2> -->* psi2 |- bullet
+      --------------------------------------  :: U
+      psi1 |- tau1 sim tau2 -| psi2
+
+
+  defn E_and_Eqs__in --> E_and_Eqs__out
+    :: :: Uss :: 'Uss__'
+    {{ com Unification Algorithm (Single-step) }} {{ tex \begin{array}{l} [[E_and_Eqs__in]] [[-->]] \\ [[E_and_Eqs__out]] \end{array} }}
+    by
+
+      nolc psi
+      ----------------------------------------  :: Unit
+      psi |- Unit sim Unit; eqs --> psi |- eqs
+
+
+      nolc psi
+      --------------------------------------  :: Ex
+      psi |- alpha sim alpha; eqs --> psi |- eqs
+
+
+      nolc psi
+      nolc tau1
+      nolc tau2
+      nolc tau3
+      nolc tau4
+      ----------------------------------------------------------------------------------  :: Arr
+      psi |- (tau1 -> tau2) sim (tau3 -> tau4); eqs --> psi |- tau1 sim tau3; tau2 sim tau4; eqs
+
+
+      alpha notin fv(tau3 -> tau4)
+      <alpha1; alpha2> fresh psi1; (a1; alpha ++ a2) + psi2 [[:FR]]
+      Alg alpha1
+      Alg alpha2
+      (alpha sim (tau3 -> tau4)) equiv (tau1 sim tau2)
+      ----------------------------------------------------------------------------------------  :: Split
+      psi1; (a1; alpha ++ a2) + psi2 |- tau1 sim tau2; eqs --> psi1; (a1; alpha1; alpha2 ++ a2) + [alpha1 -> alpha2/alpha] psi2 |- (alpha1 -> alpha2) sim (tau3 -> tau4); [alpha1 -> alpha2/alpha] eqs
+
+
+      nolc psi2
+      alpha elem psi1; a1
+      (alpha sim beta) equiv (tau1 sim tau2)
+      -------------------------------------------------------------  :: SubEx
+      psi1; (a1; beta ++ a2) + psi2 |- tau1 sim tau2; eqs --> psi1; (a1 ++ a2) + [alpha/beta] psi2 |- [alpha/beta] eqs
+
+
+      nolc psi1
+      nolc psi2
+      (Unit sim alpha) equiv (tau1 sim tau2)
+      ----------------------------------------------------------------  :: SubUnit
+      psi1; (a1; alpha ++ a2) + psi2 |- tau1 sim tau2; eqs --> psi1; (a1 ++ a2) + [Unit/alpha] psi2 |- [Unit/alpha] eqs
+
+
+  % defn psi ||- t1 : sigma <= t2 : [ a ] tau
+  %   :: :: SumpSub' :: SumpSub'__
+  %   {{ com Type subsumption }}
+  %   by
+
+  %     nolc psi
+  %     nolc tau
+  %     ------------------  :: M
+  %     psi ||- t : tau <= t : [bullet] tau
+
+
+  %     psi; a |-T tau [[:WFT]]
+  %     psi; a ||- sigma1 <= tau [[:SS]]
+  %     ------------------------------------  :: L
+  %     psi ||- sigma1 <= forall alpha . tau
+
+
+defns
+DeclarativeSystem :: '' ::=
+
+  defn psi ||- e : tau ~> t
+    :: :: Dec :: 'Dec__'
+    {{ com Term Typing }}
+    by
+
+      % tx = x [[:EQ]]
+      psi(x) = sigma [[:IN]]
+      psi |- x : sigma >= t : tau [[:SS]]
+      --------------------  :: Var
+      psi ||- x : tau ~> t
+
+
+      nolc psi
+      ------------------------  :: Unit
+      psi ||- unit : Unit ~> unit
+
+
+      psi |-T tau1 [[:WFT]]
+      psi; x : tau1 ||- e : tau2 ~> openvar t x [[:DEC]]
+      -----------------------------------  :: Abs
+      psi ||- \ x . e : tau1 -> tau2 ~> \ (x : tau1). t
+      % psi |-Sc sigma [[:WFT]]
+      % psi; x : sigma ||- e : tau ~> openvar t x [[:DEC]]
+      % -----------------------------------  :: Abs
+      % psi ||- \ x . e : sigma -> tau ~> \ (x : sigma). t
+
+
+      psi ||- e1 : tau1 -> tau2 ~> t1 [[:DEC1]]
+      psi ||- e2 : tau1 ~> t2 [[:DEC2]]
+      ------------------------------  :: App
+      psi ||- e1 e2 : tau2 ~> t1 t2
+
+      a fresh psi
+      psi; a ||- e1 : tau1 ~> t1 [[:DEC1]]
+      psi; x : close a tau1 ||- e2 : tau ~> openvar t2 x [[:DEC2]]
+      ------------------------------------------  :: Let
+      psi ||- let x = e1 inlet e2 : tau ~> opensub t2 (close a t1) x
+
+  defn psi ||- t1 : sigma >=spec t2 : [ A ] tau
+    :: :: SS :: 'SubSumpASpec__'
+    {{ com SubSump with A }}
+    by
+
+      ------------------------------------- :: M
+      psi ||- t : tau >=spec t : [bullet] tau
+
+
+      psi; a1 |-T tau [[:WFT]]
+      psi; a1 ||- t1 [tau] : { tau / alpha } sigma >=spec t2 : [A2] tau
+      ------------------------------------- :: S
+      psi ||- t1 : forall alpha . sigma >=spec t2 : [A1 ++ A2] tau
+
+
+  defn psi ||- e : [ A ] tau ~> t
+    :: :: DecA :: 'DecA__'
+    {{ com Term Typing with A }}
+    by
+
+      psi(x) = sigma [[:IN]]
+      psi ||- x : sigma >=d t : [a] tau [[:SS]]
+      --------------------  :: Var
+      psi ||- x : [a] tau ~> t
+
+
+      a fresh psi
+      ------------------------  :: Unit
+      psi ||- unit : [a] Unit ~> unit
+
+
+      a1 fresh psi
+      psi; a1 |-T tau1 [[:WFT]]
+      psi; a1; x : tau1 ||- e : [a2] tau2 ~> openvar t x [[:DEC]]
+      -----------------------------------  :: Abs
+      psi ||- \ x . e : [a1 ++ a2] tau1 -> tau2 ~> \ (x : tau1). t
+
+
+      psi ||- e1 : [a1] tau1 -> tau2 ~> t1 [[:DEC1]]
+      psi ; a1 ||- e2 : [a2] tau1 ~> t2 [[:DEC2]]
+      ------------------------------  :: App
+      psi ||- e1 e2 : [a1 ++ a2] tau2 ~> t1 t2
+
+
+      % a fresh psi
+      psi ||- e1 : [a1] tau1 ~> t1 [[:DEC1]]
+      psi; x : close a1 tau1; {a1} ||- e2 : [a2] tau ~> openvar t2 x [[:DEC2]]
+      ------------------------------------------  :: Let
+      psi ||- let x = e1 inlet e2 : [a2] tau ~> opensub t2 (close a1 t1) x
+
+defns
+AlgorithmicSystem :: '' ::=
+
+  defn psi1 |- e : [ a ] tau ~> t -| psi2
+    :: :: Inf :: 'Inf__'
+    {{ com Type Inference }}
+    by
+
+      % tx = x [[:EQ]]
+      psi(x) = sigma [[:IN]]
+      psi |- x : sigma >=a t : [a] tau [[:INST]]
+      ------------------------  :: Var
+      psi |- x : [a] tau ~> t -| psi
+
+
+      nolc psi
+      ----------------------------------  :: Unit
+      psi |- unit : [bullet] Unit ~> unit -| psi
+
+
+      alpha fresh psi__in [[:FR]]
+      Alg alpha [[:ALG]]
+      psi__in; <alpha>; x : alpha |- e : [a2] tau2 ~> openvar t x -| psi__out; a1; x : tau1 [[:INF]]
+      -----------------------------------------------------------  :: Abs
+      psi__in |- \x. e : [a1 ++ a2] tau1 -> tau2 ~> \ (x : tau1) . t -| psi__out
+
+
+      psi__in |- e1 : [a1] tau ~> t1 -| psi1 [[:INF1]]
+      psi1; {t1 : [a1] tau} |- e2 : [a2] tau1 ~> t2 -| psi2; {t1' : [a1'] tau'} [[:INF2]]
+      alpha fresh psi2; (a1' ++ a2) [[:FR]]
+      Alg alpha [[:ALG]]
+      psi2; (a1' ++ a2; alpha); {t1' t2 : alpha} |- tau' sim tau1 -> alpha -| psi__out; a__out; {t__out : tau__out} [[:UNI]]
+      -----------------------------------------------------------------------------------------------  :: App
+      psi__in |- e1 e2 : [a__out] tau__out ~> t__out -| psi__out
+
+
+      psi__in |- e1 : [a1] tau ~> t1 -| psi1 [[:INF1]]
+      psi1 ; x : close a1 tau ; {close a1 t1}; {a1} |- e2 : [a2] tau2 ~> openvar t2 x -| psiout; x : sigma__out; {t1'}; {a1'} [[:INF2]]
+      --------------------------------------------------------------  :: Let
+      psi__in |- let x = e1 inlet e2 : [a2] tau2 ~> opensub t2 t1' x -| psiout
+
+
+defns EironmentInstantiation :: '' ::=
+
+  defn psi  |- a ~> theta2
+    :: :: AInst :: 'AInst__'
+    {{ com A instantiation }}
+    by
+
+      nolc psi
+      ------------------------------------- :: Nil
+      psi |- bullet ~> bullet
+
+
+      psi |- a ~> theta2 [[:AINST]]
+      psi |-T tau [[:WFT]]
+      ------------------------------------- :: C
+      psi |- a; alpha ~> [ tau / alpha ] dot theta2
+
+  defn psi , theta1 |- psi__alg ~> psi__dec , theta2
+    :: :: EInst :: 'EInst__'
+    {{ com Environment instantiation }}
+    by
+
+      nolc psi
+      ------------------------------------- :: Nil
+      psi, theta |- bullet ~> bullet, bullet
+
+      psi, theta1 |- psi__alg ~> psi__dec, theta2 [[:EINST]]
+      a__dec fresh psi__dec [[:FR]]
+      psi +  psi__dec; a__dec |- a__alg ~> theta3 [[:AINST]]
+      ----------------------------------------------------  :: A
+      psi, theta1 |- psi__alg; a__alg ~> psi__dec; a__dec, theta3 + theta2
+
+
+      psi, theta1 |- psi__alg ~> psi__dec, theta2 [[:EINST]]
+      nolc sigma__alg
+      ----------------------------------  :: S
+      psi, theta1 |- psi__alg; x : sigma__alg ~> psi__dec; x : (theta2 + theta1) sigma__alg, theta2
+
+
+      nolc t__alg
+      nolc sigma__alg
+      psi, theta1 |- psi__alg ~> psi__dec, theta2 [[:EINST]]
+      a__dec fresh psi__dec [[:FR]]
+      psi + psi__dec; a__dec |- a__alg ~> theta3 [[:AINST]]
+      ----------------------------------  :: O
+      psi, theta1 |- psi__alg; {t__alg : [a__alg] sigma__alg} ~> psi__dec; {(theta3 + theta2 + theta1) t__alg : [a__dec] (theta3 + theta2 + theta1) sigma__alg}, theta2
+
+  defn psi , theta1 |-' psi__alg ~> psi__dec , theta2
+    :: :: EInstD :: 'EInstD__'
+    {{ com Environment instantiation }}
+    by
+
+      nolc psi
+      ------------------------------------- :: Nil
+      psi, theta |-' bullet ~> bullet, bullet
+
+      psi, theta1 |-' psi__alg ~> psi__dec, theta2 [[:EINST]]
+      a__dec fresh psi__dec [[:FR]]
+      Dec a__dec [[:DEC]]
+      psi +  psi__dec; a__dec |- a__alg ~> theta3 [[:AINST]]
+      ----------------------------------------------------  :: A
+      psi, theta1 |-' psi__alg; a__alg ~> psi__dec; a__dec, theta3 + theta2
+
+
+      psi, theta1 |-' psi__alg ~> psi__dec, theta2 [[:EINST]]
+      nolc sigma__alg
+      ----------------------------------  :: S
+      psi, theta1 |-' psi__alg; x : sigma__alg ~> psi__dec; x : (theta2 + theta1) sigma__alg, theta2
+
+
+      nolc t__alg
+      nolc sigma__alg
+      psi, theta1 |-' psi__alg ~> psi__dec, theta2 [[:EINST]]
+      a__dec fresh psi__dec [[:FR]]
+      Dec a__dec [[:DEC]]
+      psi + psi__dec; a__dec |- a__alg ~> theta3 [[:AINST]]
+      ----------------------------------  :: O
+      psi, theta1 |-' psi__alg; {t__alg : [a__alg] sigma__alg} ~> psi__dec; {(theta3 + theta2 + theta1) t__alg : [a__dec] (theta3 + theta2 + theta1) sigma__alg}, theta2
+
+embed
+{{ coq
+
+(*** Beginning of embedded section *)
+
+Axiom SubSumpC : E -> Sc -> T -> Prop.
+
+Fixpoint E_lookup (ψ:E) (x:var) : option Sc :=
+  match ψ with
+  | E__Nil => None
+  | (E__Var ψ' y σ) => (if eq_var x y then Some σ else E_lookup ψ' x)
+  | (E__A ψ' _ | E__O ψ' _ _ _ ) => E_lookup ψ' x
+end.
+
+(** never simpls *)
+Arguments open_Tm_wrt_Tm _ _ : simpl never.
+Arguments open_Sc_wrt_T _ _ : simpl never.
+Arguments open_E_wrt_T _ _ : simpl never.
+Arguments open_Tm_wrt_T _ _ : simpl never.
+Arguments open_E_wrt_Tm _ _ : simpl never.
+Arguments open_T_wrt_T _ _ : simpl never.
+Arguments open_Ex_wrt_Ex _ _ : simpl never.
+
+Definition Subx : Set := list (Tm * var).
+
+(*** Substitution classes *)
+(** substable *)
+Class substable_name (X : Type) (In : Type) (Var : Type) := subst__x : In -> Var -> X -> X.
+
+#[export] Instance substable_var_Ex : substable_name Ex Ex var := { subst__x := subst_var_Ex }.
+#[export] Instance substable_var_Tm : substable_name Tm Tm var := { subst__x := subst_tvar_Tm }.
+(*#[export] Instance substable_var_FTm : substable_name FTm FTm fvar := { subst__x := subst_fvar_FTm }.*)
+
+Class substable (X : Type) (In : Type) (Var : Type) := subst : In -> Var -> X -> X.
+#[export] Instance substable_skvar_Sc  : substable Sc  T skvar := { subst := subst_skvar_Sc  }.
+#[export] Instance substable_skvar_T   : substable T   T skvar := { subst := subst_skvar_T   }.
+(*#[export] Instance substable_skvar_FT  : substable FT  FT fskvar := { subst := subst_fskvar_FT   }.*)
+#[export] Instance substable_skvar_Tm  : substable Tm  T skvar := { subst := subst_skvar_Tm  }.
+(*#[export] Instance substable_skvar_FTm : substable FTm  FT fskvar := { subst := subst_fskvar_FTm  }.*)
+#[export] Instance substable_skvar_E   : substable E   T skvar := { subst := subst_skvar_E   }.
+
+Definition subst_skvar_Eqs (τ:T) (α:skvar) : Eqs -> Eqs := Lists.List.map (fun p => (subst τ α (fst p), subst τ α (snd p))).
+#[export] Instance substable_skvar_Eqs : substable Eqs T skvar := { subst := subst_skvar_Eqs }.
+
+Class lcable (X : Type) :=  lc : X -> Prop .
+#[export] Instance lcable_Sc  : lcable Sc  := { lc := lc_Sc  }.
+#[export] Instance lcable_T   : lcable T   := { lc := lc_T   }.
+#[export] Instance lcable_Tm  : lcable Tm  := { lc := lc_Tm  }.
+#[export] Instance lcable_Ex  : lcable Ex  := { lc := lc_Ex  }.
+
+
+(** Sub_appable *)
+Class Sub_appable (X : Type) := Sub_app : X -> Sub -> X.
+Notation  "⟦ θ ▹ x ⟧"  := (Sub_app x θ) (at level 05, format "⟦ θ  ▹  x ⟧") : type_scope.
+
+(** free vars *)
+(* fsk *)
+Class fskable (X : Type) := fsk : X -> vars.
+Notation  "fv__α( x )"  := (fsk x) (at level 50, format "fv__α( x )") : type_scope.
+
+#[export] Instance fskable_Sc : fskable Sc := { fsk := fsk_Sc }.
+#[export] Instance fskable_T  : fskable T  := { fsk := fsk_T  }.
+#[export] Instance fskable_Tm : fskable Tm := { fsk := fsk_Tm }.
+
+(* fv *)
+Class fvable (X : Type) := fv : X -> vars.
+Notation  "fv__x( x )"  := (fv x) (at level 50, format "fv__x( x )") : type_scope.
+
+#[export] Instance fvable_Ex : fvable Ex := { fv := fv_Ex }.
+#[export] Instance fvable_Tm : fvable Tm := { fv := ftv_Tm }.
+
+(** Other *)
+Definition Sub_app_Tm : Tm -> Sub -> Tm := fold_right (uncurry subst).
+Definition Sub_app_T : T -> Sub -> T := fold_right (uncurry subst).
+Arguments Sub_app_T _ _ : simpl never.
+
+#[export] Instance Sub_appable_T  : Sub_appable T  := { Sub_app := Sub_app_T  }.
+#[export] Instance Sub_appable_Tm : Sub_appable Tm := { Sub_app := Sub_app_Tm }.
+
+Fixpoint Sub_app_Sc (σ:Sc) (θ:Sub) : Sc :=
+  match σ with
+  | S__T      τ => S__T      ⟦θ ▹ τ⟧
+  | S__Forall σ' => S__Forall (Sub_app_Sc σ' θ)
+end.
+
+#[export] Instance Sub_appable_Sc : Sub_appable Sc := { Sub_app := Sub_app_Sc }.
+
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Open Scope program_scope.
+
+Require Import Metalib.Metatheory.
+Require Import Cpdtlib.CpdtTactics.
+Require Import Coq.Relations.Relation_Operators.
+Require Import Preamble.Buildins.
+Require Import Preamble.WSfun.
+
+(*** Judgment notation *)
+Notation "•" := E__Nil (at level 1).
+
+Notation "ψ ::a a" := (E__A ψ a) (at level 65).
+Notation "ψ ::x x ':-' σ" := (E__Var ψ x σ) (at level 65).
+
+Notation "ψ ::o ⦇ σ ⦈" := (E__O ψ t__Unit (nil:A) σ) (at level 65, format "ψ  ::o  ⦇ σ ⦈").
+Notation "ψ ::o ⦇ t ▸ σ ⦈" := (E__O ψ t (nil:A) σ) (at level 65, format "ψ  ::o  ⦇ t  ▸  σ ⦈").
+Notation "ψ ::o ⦇ t ▸ ⟨ a ⟩ σ ⦈" := (E__O ψ t a σ) (at level 65, format "ψ  ::o  ⦇ t  ▸  ⟨ a ⟩  σ ⦈").
+
+Definition oneA (a:A) := E__A E__Nil a.
+Definition oneX (x:var) (σ:Sc) := E__Var E__Nil x σ.
+Definition oneO (t:Tm) (a:A) (σ:Sc) := E__O E__Nil t a σ.
+
+Notation "< a >a" := (oneA a) (at level 1, format "< a >a").
+Notation "< x :- σ >x" := (oneX x σ) (at level 1, format "< x  :-  σ >x").
+Notation "< ⦇ t ▸ ⟨ a ⟩ σ ⦈ >o" := (oneO t a σ) (at level 1, format "< ⦇ t  ▸  ⟨ a ⟩  σ ⦈ >o").
+
+Definition E_append_A_in_A (ψ:E) (a:A) : E :=
+  match ψ with
+  | • => oneA a
+  | (ψ' ::a a') =>
+      ψ' ::a (a ++ a')
+  | (_ ::x _ :- _ | _ ::o ⦇_ ▸ ⟨_⟩ _⦈) =>
+      ψ ::a a
+end.
+
+(*** Set modules *)
+(** DecT *)
+Module DecT <: Coq.Structures.DecidableType.DecidableType.
+  Definition t := T.
+  Definition eq : t -> t -> Prop := @Logic.eq t.
+
+  Definition eq_refl  := @Logic.eq_refl  T.
+  Definition eq_sym   := @Logic.eq_sym   T.
+  Definition eq_trans := @Logic.eq_trans T.
+
+  Definition eq_dec    := eq_T.
+End DecT.
+
+Module Export TSetI : WSfunPlus DecT := MakePlus DecT.
+Notation TSet := TSetI.t.
+Module Import TSetD := WDecide_fun DecT TSetI.
+
+(** Sc *)
+Module DecSc <: Coq.Structures.DecidableType.DecidableType.
+  Definition t := Sc.
+  Definition eq : t -> t -> Prop := @Logic.eq t.
+
+  Definition eq_refl  := @Logic.eq_refl  Sc.
+  Definition eq_sym   := @Logic.eq_sym   Sc.
+  Definition eq_trans := @Logic.eq_trans Sc.
+
+  Definition eq_dec    := eq_Sc.
+End DecSc.
+
+Module Export ScSetI : WSfunPlus DecSc := MakePlus DecSc.
+Notation ScSet := ScSetI.t.
+Module Import ScSetD := WDecide_fun DecSc ScSetI.
+
+(** DecTm *)
+Module DecTm <: Coq.Structures.DecidableType.DecidableType.
+  Definition t := Tm.
+  Definition eq : t -> t -> Prop := @Logic.eq t.
+
+  Definition eq_refl  := @Logic.eq_refl  Tm.
+  Definition eq_sym   := @Logic.eq_sym   Tm.
+  Definition eq_trans := @Logic.eq_trans Tm.
+
+  Definition eq_dec    := eq_Tm.
+End DecTm.
+
+Module Export TmSetI : WSfunPlus DecTm := MakePlus DecTm.
+Notation TmSet := TmSetI.t.
+Module Import TmSetD := WDecide_fun DecTm TmSetI.
+
+
+(** Pair with T *)
+Definition PairT := (T * atom)%type.
+Definition eq_dec_PairT : forall (x y : PairT), {x = y} + {x <> y}.
+Proof.
+  intros. destruct x, y.
+  destruct (TaggedAtom.eq_dec a a0). 2:right; congruence.
+  destruct (eq_T t0 t1). 2:right; congruence.
+  crush.
+Qed.
+
+Module DecPairT <: Coq.Structures.DecidableType.DecidableType.
+  Definition t := PairT.
+  Definition eq : t -> t -> Prop := @Logic.eq t.
+
+  Definition eq_refl  := @Logic.eq_refl  t.
+  Definition eq_sym   := @Logic.eq_sym   t.
+  Definition eq_trans := @Logic.eq_trans t.
+
+  Definition eq_dec    := eq_dec_PairT.
+End DecPairT.
+
+Module Export PairTSetI : WSfunPlus DecPairT := MakePlus DecPairT.
+Notation PairTSet := PairTSetI.t.
+Module Import PairTSetD := WDecide_fun DecPairT PairTSetI.
+
+(** Pair with Sc *)
+Definition PairSc := (Sc * atom)%type.
+Definition eq_dec_PairSc : forall (x y : PairSc), {x = y} + {x <> y}.
+Proof.
+  intros. destruct x, y.
+  destruct (TaggedAtom.eq_dec a a0). 2:right; congruence.
+  destruct (eq_Sc s s0). 2:right; congruence.
+  crush.
+Qed.
+
+Module DecPairSc <: Coq.Structures.DecidableType.DecidableType.
+  Definition t := PairSc.
+  Definition eq : t -> t -> Prop := @Logic.eq t.
+
+  Definition eq_refl  := @Logic.eq_refl  t.
+  Definition eq_sym   := @Logic.eq_sym   t.
+  Definition eq_trans := @Logic.eq_trans t.
+
+  Definition eq_dec    := eq_dec_PairSc.
+End DecPairSc.
+
+Module Export PairScSetI : WSfunPlus DecPairSc := MakePlus DecPairSc.
+Notation PairScSet := PairScSetI.t.
+Module Import PairScSetD := WDecide_fun DecPairSc PairScSetI.
+
+(** Atoms *)
+Module Export AtomSetProps := Preamble.WSfun.SetInterface TaggedAtom AtomSetImpl.
+
+(** Notations *)
+Notation remove   := AtomSetImpl.remove.
+Notation remove__τ  := TSetI.remove.
+Notation remove__σ  := ScSetI.remove.
+Notation remove__t  := TmSetI.remove.
+Notation remove__τx := PairTSetI.remove.
+Notation remove__σx := PairScSetI.remove.
+
+Notation empty   := AtomSetImpl.empty.
+Notation empty__τ  := TSetI.empty.
+Notation empty__σ  := ScSetI.empty.
+Notation empty__t  := TmSetI.empty.
+Notation empty__τx := PairTSetI.empty.
+Notation empty__σx := PairScSetI.empty.
+Notation "∅"   := empty   (at level 99, no associativity).
+Notation "∅τ"  := empty__τ  (at level 99, no associativity).
+Notation "∅σ"  := empty__σ  (at level 99, no associativity).
+Notation "∅t"  := empty__t  (at level 99, no associativity).
+Notation "∅τx" := empty__τx (at level 99, no associativity).
+Notation "∅σx" := empty__σx (at level 99, no associativity).
+
+Notation union   := AtomSetImpl.union.
+Notation union__τ  := TSetI.union.
+Notation union__σ  := ScSetI.union.
+Notation union__t  := TmSetI.union.
+Notation union__τx := PairTSetI.union.
+Notation union__σx := PairScSetI.union.
+Notation "L1 ∪ L2"   := (union   L1 L2) (at level 65, no associativity).
+Notation "L1 ∪τ L2"  := (union__τ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∪σ L2"  := (union__σ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∪t L2"  := (union__t  L1 L2) (at level 65, no associativity).
+Notation "L1 ∪τx L2" := (union__τx L1 L2) (at level 65, no associativity).
+Notation "L1 ∪σx L2" := (union__σx L1 L2) (at level 65, no associativity).
+
+Notation inter   := AtomSetImpl.inter.
+Notation inter__τ  := TSetI.inter.
+Notation inter__σ  := ScSetI.inter.
+Notation inter__t  := TmSetI.inter.
+Notation inter__τx := PairTSetI.inter.
+Notation inter__σx := PairScSetI.inter.
+Notation "L1 ∩ L2"   := (inter   L1 L2) (at level 65, no associativity).
+Notation "L1 ∩τ L2"  := (inter__τ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∩σ L2"  := (inter__σ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∩t L2"  := (inter__t  L1 L2) (at level 65, no associativity).
+Notation "L1 ∩τx L2" := (inter__τx L1 L2) (at level 65, no associativity).
+Notation "L1 ∩σx L2" := (inter__σx L1 L2) (at level 65, no associativity).
+
+Notation diff   := AtomSetImpl.diff.
+Notation diff__τ  := TSetI.diff.
+Notation diff__σ  := ScSetI.diff.
+Notation diff__t  := TmSetI.diff.
+Notation diff__τx := PairTSetI.diff.
+Notation diff__σx := PairScSetI.diff.
+Notation "L1 ∖ L2"   := (diff   L1 L2) (at level 65, no associativity).
+Notation "L1 ∖τ L2"  := (diff__τ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∖σ L2"  := (diff__σ  L1 L2) (at level 65, no associativity).
+Notation "L1 ∖t L2"  := (diff__t  L1 L2) (at level 65, no associativity).
+Notation "L1 ∖τx L2" := (diff__τx L1 L2) (at level 65, no associativity).
+Notation "L1 ∖σx L2" := (diff__σx L1 L2) (at level 65, no associativity).
+
+Notation Equal   := AtomSetImpl.Equal.
+Notation Equal__τ  := TSetI.Equal.
+Notation Equal__σ  := ScSetI.Equal.
+Notation Equal__t  := TmSetI.Equal.
+Notation Equal__τx := PairTSetI.Equal.
+Notation Equal__σx := PairScSetI.Equal.
+Notation "L1 ≡ L2"   := (Equal   L1 L2) (at level 70, no associativity).
+Notation "L1 ≡τ L2"  := (Equal__τ  L1 L2) (at level 70, no associativity).
+Notation "L1 ≡σ L2"  := (Equal__σ  L1 L2) (at level 70, no associativity).
+Notation "L1 ≡t L2"  := (Equal__t  L1 L2) (at level 70, no associativity).
+Notation "L1 ≡τx L2" := (Equal__τx L1 L2) (at level 70, no associativity).
+Notation "L1 ≡σx L2" := (Equal__σx L1 L2) (at level 70, no associativity).
+
+Notation Subset   := AtomSetImpl.Subset.
+Notation Subset__τ  := TSetI.Subset.
+Notation Subset__σ  := ScSetI.Subset.
+Notation Subset__t  := TmSetI.Subset.
+Notation Subset__τx := PairTSetI.Subset.
+Notation Subset__σx := PairScSetI.Subset.
+Notation "L1 ⊆ L2"   := (Subset   L1 L2) (at level 70, no associativity).
+Notation "L1 ⊆τ L2"  := (Subset__τ  L1 L2) (at level 70, no associativity).
+Notation "L1 ⊆σ L2"  := (Subset__σ  L1 L2) (at level 70, no associativity).
+Notation "L1 ⊆t L2"  := (Subset__t  L1 L2) (at level 70, no associativity).
+Notation "L1 ⊆τx L2" := (Subset__τx L1 L2) (at level 70, no associativity).
+Notation "L1 ⊆σx L2" := (Subset__σx L1 L2) (at level 70, no associativity).
+
+Notation disjoint   := AtomSetImpl.disjoint.
+Notation disjoint__τ  := TSetI.disjoint.
+Notation disjoint__σ  := ScSetI.disjoint.
+Notation disjoint__t  := TmSetI.disjoint.
+Notation disjoint__τx := PairTSetI.disjoint.
+Notation disjoint__σx := PairScSetI.disjoint.
+Notation "L1 ∐ L2"   := (disjoint   L1 L2) (at level 70, no associativity).
+Notation "L1 ∐τ L2"  := (disjoint__τ  L1 L2) (at level 70, no associativity).
+Notation "L1 ∐σ L2"  := (disjoint__σ  L1 L2) (at level 70, no associativity).
+Notation "L1 ∐t L2"  := (disjoint__t  L1 L2) (at level 70, no associativity).
+Notation "L1 ∐τx L2" := (disjoint__τx L1 L2) (at level 70, no associativity).
+Notation "L1 ∐σx L2" := (disjoint__σx L1 L2) (at level 70, no associativity).
+
+Notation In   := AtomSetImpl.In.
+Notation In__τ  := TSetI.In.
+Notation In__σ  := ScSetI.In.
+Notation In__t  := TmSetI.In.
+Notation In__τx := PairTSetI.In.
+Notation In__σx := PairScSetI.In.
+Notation "x ∈ L"   := (In   x L) (at level 70, no associativity).
+Notation "x ∈τ L"  := (In__τ  x L) (at level 70, no associativity).
+Notation "x ∈σ L"  := (In__σ  x L) (at level 70, no associativity).
+Notation "x ∈t L"  := (In__t  x L) (at level 70, no associativity).
+Notation "x ∈τx L" := (In__τx x L) (at level 70, no associativity).
+Notation "x ∈σx L" := (In__σx x L) (at level 70, no associativity).
+
+Notation "x ∉ L"     := (~ AtomSetImpl.In x L)     (at level 70, no associativity).
+Notation "x ∉τ L"    := (~ TSetI.In x L)           (at level 70, no associativity).
+Notation "x ∉σ L"    := (~ ScSetI.In x L)          (at level 70, no associativity).
+Notation "x ∉t L"    := (~ TmSetI.In x L)           (at level 70, no associativity).
+Notation "x ∉τx L"   := (~ PairTSetI.In x L)       (at level 70, no associativity).
+Notation "x ∉σx L"   := (~ PairScSetI.In x L)      (at level 70, no associativity).
+
+
+(*** List_to_Set *)
+Module Type List_to_Set_alg (E : DecidableType) (M : WSfun E).
+  Parameter elt : Type.
+  Parameter f : elt -> M.t.
+End List_to_Set_alg.
+
+(** Def *)
+Module List_to_Set (E : DecidableType) (Import M : WSfun E) (Import Alg : List_to_Set_alg E M).
+  Module Import Dec := WDecide_fun E M.
+  Section List_to_Set.
+    Definition List_to_Set : list elt -> M.t :=
+      fold_right (M.union ∘ f) M.empty.
+
+    Theorem List_to_Set_app : forall (l1 l2 : list elt),
+        List_to_Set (l1 ++ l2) [=] union (List_to_Set l1) (List_to_Set l2).
+    Proof. intros. induction l1. fsetdec. simpl. autorewrite with core. fsetdec. Qed.
+
+    Theorem List_to_Set_singleton : forall (x : elt),
+        List_to_Set [x] [=] f x.
+    Proof. intros. simpl. autorewrite with core. fsetdec. Qed.
+
+  End List_to_Set.
+  #[export] Hint Rewrite List_to_Set_app       : List_to_Set.
+  #[export] Hint Rewrite List_to_Set_singleton : List_to_Set.
+End List_to_Set.
+
+(** Using List_to_Set *)
+Module Varl_alg <: List_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition elt := atom.
+  Definition f : elt -> atoms := AtomSetImpl.singleton.
+End Varl_alg.
+#[export] Hint Unfold Varl_alg.elt Varl_alg.f : algs.
+
+Module Export Varl := List_to_Set TaggedAtom AtomSetImpl Varl_alg.
+Notation varl := Varl.List_to_Set.
+
+Module bindings_Sub_alg <: List_to_Set_alg DecPairT PairTSetI.
+  Definition elt := PairT.
+  Definition f : PairT -> PairTSet := PairTSetI.singleton.
+End bindings_Sub_alg.
+#[export] Hint Unfold bindings_Sub_alg.elt bindings_Sub_alg.f : algs.
+(* Fact bindings_Sub_alg_f_unfold : bindings_Sub_alg.f = PairTSetI.singleton. reflexivity. Qed. *)
+(* #[export] Hint Rewrite bindings_Sub_alg_f_unfold : List_to_Set. *)
+
+Module Export Bindings_Sub := List_to_Set DecPairT PairTSetI bindings_Sub_alg.
+Notation bindings_Sub := Bindings_Sub.List_to_Set.
+
+
+Module codom_Sub_alg <: List_to_Set_alg DecT TSetI.
+  Definition elt := PairT.
+  Definition f : elt -> TSet := (TSetI.singleton ∘ fst).
+End codom_Sub_alg.
+#[export] Hint Unfold codom_Sub_alg.elt codom_Sub_alg.f : algs.
+(* Fact codom_Sub_alg_f_unfold : codom_Sub_alg.f = (Ssingleton ∘ fst). reflexivity. Qed. *)
+(* #[export] Hint Rewrite codom_Sub_alg_f_unfold : List_to_Set. *)
+
+Module Export Codom_Sub := List_to_Set DecT TSetI codom_Sub_alg.
+Notation codom_Sub := Codom_Sub.List_to_Set.
+
+
+Module skvars_codom_Sub_alg <: List_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition elt := PairT.
+  Definition f : elt -> atoms := (fsk ∘ fst).
+End skvars_codom_Sub_alg.
+#[export] Hint Unfold skvars_codom_Sub_alg.elt skvars_codom_Sub_alg.f : algs.
+(* Fact skvars_codom_Sub_alg_f_unfold : skvars_codom_Sub_alg.f = (fsk_T ∘ fst). reflexivity. Qed. *)
+(* #[export] Hint Rewrite skvars_codom_Sub_alg_f_unfold : List_to_Set. *)
+
+Module Export Skvars_codom_Sub := List_to_Set TaggedAtom AtomSetImpl skvars_codom_Sub_alg.
+Notation skvars_codom_Sub := Skvars_codom_Sub.List_to_Set.
+
+
+Module dom_Sub_alg <: List_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition elt := PairT.
+  Definition f : elt -> atoms := (AtomSetImpl.singleton ∘ snd).
+End dom_Sub_alg.
+#[export] Hint Unfold dom_Sub_alg.elt dom_Sub_alg.f : algs.
+(* Fact dom_Sub_alg_f_unfold : dom_Sub_alg.f = (Ssingleton ∘ snd). reflexivity. Qed. *)
+(* #[export] Hint Rewrite dom_Sub_alg_f_unfold : List_to_Set. *)
+
+Module Export dom_Sub := List_to_Set TaggedAtom AtomSetImpl dom_Sub_alg.
+Notation dom_Sub := dom_Sub.List_to_Set.
+
+
+Module codom_Subx_alg <: List_to_Set_alg DecTm TmSetI.
+  Definition elt := (Tm * atom)%type.
+  Definition f : elt -> TmSet := (TmSetI.singleton ∘ fst).
+End codom_Subx_alg.
+#[export] Hint Unfold codom_Subx_alg.elt codom_Subx_alg.f : algs.
+
+Module Export Codom_Subx := List_to_Set DecTm TmSetI codom_Subx_alg.
+Notation codom_Subx := Codom_Subx.List_to_Set.
+
+
+Module dom_Subx_alg <: List_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition elt := (Tm * atom)%type.
+  Definition f : elt -> atoms := (AtomSetImpl.singleton ∘ snd).
+End dom_Subx_alg.
+#[export] Hint Unfold dom_Subx_alg.elt dom_Subx_alg.f : algs.
+
+Module Export dom_Subx := List_to_Set TaggedAtom AtomSetImpl dom_Subx_alg.
+Notation dom_Subx := dom_Subx.List_to_Set.
+
+
+(*** E_fold *)
+(** Def *)
+Section Sec_E_fold.
+  Context {S : Type}.
+  Variable s__nil :                   S.
+  Variable f__a   : S -> A           -> S.
+  Variable f__var : S -> var -> Sc    -> S.
+  Variable f__obj : S -> Tm -> A -> Sc -> S.
+
+  Fixpoint E_fold (ψ:E) : S :=
+    match ψ with
+      | E__Nil          => s__nil
+      | E__A   ψ' a     => f__a   (E_fold ψ') a
+      | E__Var ψ' x σ   => f__var (E_fold ψ') x σ
+      | E__O ψ' τ a σ => f__obj (E_fold ψ') τ a σ
+    end.
+End Sec_E_fold.
+
+(** Using E_fold*)
+Definition const2 {A B C} (a : A) := fun (_ : B) (_ : C) => a.
+Definition const3 {A B C D} (a : A) := fun (_ : B) (_ : C) (_ : D) => a.
+
+Definition E__app : E -> E -> E := fun ψ1 =>
+  E_fold ψ1 E__A E__Var E__O.
+Notation "A +++ B" := (E__app A B) (at level 61, left associativity).
+
+Fact E_norm_a : forall ψ a,
+    ψ ::a a = ψ +++ < a >a.
+Proof. reflexivity. Qed.
+Fact E_norm_x : forall ψ x σ,
+    ψ ::x x :- σ = ψ +++ < x :- σ >x.
+Proof. reflexivity. Qed.
+Fact E_norm_o : forall ψ t a σ,
+    ψ ::o ⦇ t ▸ ⟨ a ⟩ σ ⦈ = ψ +++ < ⦇ t ▸ ⟨ a ⟩ σ ⦈ >o.
+Proof. reflexivity. Qed.
+#[export] Hint Rewrite E_norm_a E_norm_x E_norm_o : norm.
+
+Tactic Notation "norm" :=
+  autorewrite with norm.
+Tactic Notation "norm" "in" hyp(H) :=
+  autorewrite with norm in H.
+Tactic Notation "norm" "in" "*" :=
+  autorewrite with norm in *.
+
+#[export] Hint Unfold Proper respectful impl flip : core.
+
+(*** E to Set *)
+(** Def *)
+Module Type E_to_Set_alg (E : DecidableType) (M : WSfun E).
+  Parameter f__a : A             -> M.t.
+  Parameter f__x : var -> Sc      -> M.t.
+  Parameter f__o : Tm -> A -> Sc    -> M.t.
+End E_to_Set_alg.
+
+Module E_to_Set (D : DecidableType) (Import M : WSfun D) (Import Alg : E_to_Set_alg D M).
+  Module Import Dec := WDecide_fun D M.
+  Definition E_to_Set : E -> t :=
+    E_fold empty (flip (union ∘ f__a)) (fun L x σ => union L (f__x x σ)) (fun L τ a σ => union L (f__o τ a σ)).
+  Fact E_to_Set_app : forall ψ1 ψ2,
+      E_to_Set (ψ1 +++ ψ2) [=] union (E_to_Set ψ1) (E_to_Set ψ2).
+  Proof. induction ψ2; simpl; autorewrite with core buildins; crush; fsetdec. Qed.
+  #[export] Hint Rewrite E_to_Set_app : E_to_Set.
+
+  (** Sub rel *)
+  (* Def *)
+  Definition R__sub (ψ1 ψ2:E) : Prop := E_to_Set ψ1 [<=] E_to_Set ψ2.
+  #[local] Hint Unfold R__sub : core.
+
+  (* Rewriting *)
+  Fact sub_refl  : forall (ψ:E),
+      R__sub ψ ψ.
+    crush. Qed.
+  Fact sub_trans : forall (ψ1 ψ2 ψ3:E),
+      R__sub ψ1 ψ2
+    -> R__sub ψ2 ψ3
+    -> R__sub ψ1 ψ3.
+    autounfold. fsetdec. Qed.
+  #[local] Hint Resolve sub_refl : core.
+  #[local] Hint Resolve sub_trans : slow.
+  #[export] Instance sub_app_PreOrder : PreOrder R__sub. constructor; autounfold; crush. Qed.
+
+  Fact sub_app : forall (ψ1 ψ2 ψ3 ψ4:E),
+      R__sub  ψ1          ψ3
+    -> R__sub         ψ2          ψ4
+    -> R__sub (ψ1 +++ ψ2) (ψ3 +++ ψ4).
+  Proof. autounfold. intros. autorewrite with E_to_Set. fsetdec. Qed.
+  #[local] Hint Resolve sub_app : core.
+  #[export] Instance sub_proper : Proper (R__sub ==> R__sub ==> R__sub) E__app. crush. Qed.
+
+  (** Equivalence rel *)
+  (* Def *)
+  Definition R__eq  (ψ1 ψ2:E) : Prop := E_to_Set ψ1 [=] E_to_Set ψ2.
+  #[local] Hint Unfold R__eq : core.
+
+  (* Rewriting *)
+  Fact eq_sub : forall (ψ1 ψ2:E),
+      R__eq ψ1 ψ2
+    -> R__sub ψ1 ψ2.
+  Proof. autounfold. crush. Qed.
+  #[export] Hint Resolve eq_sub : core.
+
+  Fact eq_refl  : forall (ψ:E),
+      R__eq ψ ψ.
+    crush. Qed.
+  Fact eq_trans : forall (ψ1 ψ2 ψ3:E),
+      R__eq ψ1 ψ2
+    -> R__eq ψ2 ψ3
+    -> R__eq ψ1 ψ3.
+    autounfold. fsetdec. Qed.
+  Fact eq_symm : forall (ψ1 ψ2:E),
+      R__eq ψ1 ψ2
+    -> R__eq ψ2 ψ1.
+    autounfold. fsetdec. Qed.
+  #[local] Hint Resolve eq_refl eq_symm : core.
+  #[local] Hint Resolve eq_trans : slow.
+  #[export] Instance eq_app_PreOrder : Equivalence R__eq. constructor; autounfold; crush. Qed.
+
+  Fact eq_app : forall (ψ1 ψ2 ψ3 ψ4:E),
+      R__eq  ψ1          ψ3
+    -> R__eq         ψ2          ψ4
+    -> R__eq (ψ1 +++ ψ2) (ψ3 +++ ψ4).
+  Proof. autounfold. intros. autorewrite with E_to_Set. fsetdec. Qed.
+  #[export] Hint Resolve eq_app : core.
+  #[export] Instance eq_proper : Proper (R__eq ==> R__eq ==> R__eq) E__app. crush. Qed.
+End E_to_Set.
+
+(** Using E to Set *)
+Module E_A_skvars_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := varl.
+  Definition f__x : var -> Sc -> atoms
+    := (const ∘ const) AtomSetImpl.empty.
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := (const ∘ const ∘ const) AtomSetImpl.empty.
+End E_A_skvars_alg.
+#[export] Hint Unfold E_A_skvars_alg.f__a  E_A_skvars_alg.f__x E_A_skvars_alg.f__o : algs.
+
+Module Export M_E_A_skvars := E_to_Set TaggedAtom AtomSetImpl E_A_skvars_alg.
+Notation E_A_skvars := M_E_A_skvars.E_to_Set.
+
+Module E_A_O_skvars_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := varl.
+  Definition f__x : var -> Sc -> atoms
+    := (const ∘ const) AtomSetImpl.empty.
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := fun _ a _ => varl a.
+End E_A_O_skvars_alg.
+#[export] Hint Unfold E_A_O_skvars_alg.f__a  E_A_O_skvars_alg.f__x E_A_O_skvars_alg.f__o : algs.
+
+Module Export M_E_A_O_skvars := E_to_Set TaggedAtom AtomSetImpl E_A_O_skvars_alg.
+Notation E_A_O_skvars := M_E_A_O_skvars.E_to_Set.
+
+Module E_skvars_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := varl.
+  Definition f__x : var -> Sc -> atoms
+    := fun _ σ => fv__α(σ).
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := fun t a σ => fv__α(t) ∪ varl a ∪ fv__α(σ).
+End E_skvars_alg.
+#[export] Hint Unfold E_skvars_alg.f__a  E_skvars_alg.f__x E_skvars_alg.f__o : algs.
+
+Module Export M_E_skvars := E_to_Set TaggedAtom AtomSetImpl E_skvars_alg.
+Notation E_skvars := M_E_skvars.E_to_Set.
+
+Module E_bindings_alg <: E_to_Set_alg DecPairSc PairScSetI.
+  Definition f__a : A -> PairScSet
+    := const PairScSetI.empty.
+  Definition f__x : var -> Sc -> PairScSet
+    := fun x sc => PairScSetI.singleton (sc, x).
+  Definition f__o : Tm -> A -> Sc -> PairScSet
+    := (const ∘ const ∘ const) PairScSetI.empty.
+End E_bindings_alg.
+#[export] Hint Unfold E_bindings_alg.f__a  E_bindings_alg.f__x E_bindings_alg.f__o : algs.
+
+Module Export M_E_bindings := E_to_Set DecPairSc PairScSetI E_bindings_alg.
+Notation E_bindings := M_E_bindings.E_to_Set.
+
+Module E_schemes_alg <: E_to_Set_alg DecSc ScSetI.
+  Definition f__a : A -> ScSet
+    := const ScSetI.empty.
+  Definition f__x : var -> Sc -> ScSet
+    := fun _ sc => ScSetI.singleton sc.
+  Definition f__o : Tm -> A -> Sc -> ScSet
+    := (const ∘ const ∘ const) ScSetI.empty.
+End E_schemes_alg.
+#[export] Hint Unfold E_schemes_alg.f__a  E_schemes_alg.f__x E_schemes_alg.f__o : algs.
+
+Module Export M_E_schemes := E_to_Set DecSc ScSetI E_schemes_alg.
+Notation E_schemes := M_E_schemes.E_to_Set.
+
+Module E_names_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := const empty.
+  Definition f__x : var -> Sc -> atoms
+    := fun x sc => AtomSetImpl.singleton x.
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := (const ∘ const ∘ const) empty.
+End E_names_alg.
+#[export] Hint Unfold E_names_alg.f__a  E_names_alg.f__x E_names_alg.f__o : algs.
+
+Module Export M_E_names := E_to_Set TaggedAtom AtomSetImpl E_names_alg.
+Notation E_names := M_E_names.E_to_Set.
+
+Module E_O_names_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := const empty.
+  Definition f__x : var -> Sc -> atoms
+    := fun x _ => AtomSetImpl.singleton x.
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := fun t _ _ => fv(t).
+End E_O_names_alg.
+#[export] Hint Unfold E_O_names_alg.f__a  E_O_names_alg.f__x E_O_names_alg.f__o : algs.
+
+Module Export M_E_O_names := E_to_Set TaggedAtom AtomSetImpl E_O_names_alg.
+Notation E_O_names := M_E_O_names.E_to_Set.
+
+Module E_t_names_alg <: E_to_Set_alg TaggedAtom AtomSetImpl.
+  Definition f__a : A -> atoms
+    := const empty.
+  Definition f__x : var -> Sc -> atoms
+    := const2 empty.
+  Definition f__o : Tm -> A -> Sc -> atoms
+    := fun t _ _ => fv__x(t).
+End E_t_names_alg.
+#[export] Hint Unfold E_t_names_alg.f__a  E_t_names_alg.f__x E_t_names_alg.f__o : algs.
+
+Module Export M_E_t_names := E_to_Set TaggedAtom AtomSetImpl E_t_names_alg.
+Notation E_t_names := M_E_t_names.E_to_Set.
+
+(*** Defs *)
+Definition close_Sc_wrt_A : Sc -> A -> Sc := fold_right (fun α σ => S__Forall (close_Sc_wrt_T α σ)).
+Definition close_Tm_wrt_A : Tm -> A -> Tm := fold_right (fun α σ => t__TLam (close_Tm_wrt_T α σ)).
+
+Require Import Metalib.Metatheory.
+
+Fact if_refl_skvar : forall (α:skvar) (T:Type) (x y:T),
+    (if eq_dec α α then x else y) = x.
+Proof. intros. destruct (α == α); crush. Qed.
+#[export] Hint Rewrite if_refl_skvar : if_simpl.
+
+Definition FrA (a:A) (L:vars) : Prop :=
+  NoDup a /\ varl a ∐ L.
+
+Definition WfT (ψ:E) (τ:T) : Prop :=
+    lc(τ) /\ fv__α(τ) ⊆ E_A_skvars ψ.
+Definition WfS (ψ:E) (σ:Sc) : Prop :=
+    lc(σ) /\ fv__α(σ) ⊆ E_A_skvars ψ.
+Definition Wft (ψ:E) (t:Tm) : Prop :=
+    lc(t) /\ fv__α( t ) ⊆ E_A_skvars ψ /\ fv__x( t ) ⊆ E_names ψ.
+
+Notation  "e ⊢wfσ σ"  := (WfS e σ) (at level 50) : type_scope.
+Notation  "e ⊢wfτ τ"  := (WfT e τ) (at level 50) : type_scope.
+Notation  "e ⊢wft τ"  := (Wft e τ) (at level 50) : type_scope.
+
+Inductive SubSump : E -> Sc -> T -> Prop :=    (* defn SubSump *)
+ | SS__M : forall (ψ:E) (τ:T),
+     SubSump ψ (S__T τ) τ
+ | SS__L : forall (ψ:E) (σ:Sc) (τ1 τ2:T)
+     (WFT: WfT ψ τ1)
+     (SS:  SubSump ψ (open_Sc_wrt_T σ τ1) τ2),
+     SubSump ψ (S__Forall σ) τ2.
+#[export] Hint Constructors SubSump : core.
+
+Inductive SubSumpTm : E -> Tm -> Sc -> Tm -> T -> Prop :=    (* defn SubSumpTm *)
+ | SST__M : forall (ψ:E) (t:Tm) (τ:T),
+     SubSumpTm ψ t (S__T τ) t τ
+ | SST__L : forall (ψ:E) (t:Tm) (σ:Sc) (t':Tm) (τ1 τ2:T)
+     (WFT: WfT ψ τ1)
+     (SS:  SubSumpTm ψ (t__TApp t τ1)  (open_Sc_wrt_T σ τ1) t' τ2),
+     SubSumpTm ψ t (S__Forall σ) t' τ2.
+#[export] Hint Constructors SubSumpTm : core.
+
+Inductive SubSumpTmA : E -> Tm -> Sc -> Tm -> A -> T -> Prop :=    (* defn SubSumpTm *)
+ | SSTA__M : forall (ψ:E) (t:Tm) (τ:T) (a:A)
+     (FR : FrA a (E_skvars ψ)),
+     SubSumpTmA ψ t (S__T τ) t a τ
+ | SSTA__L : forall (a1 a2:A) (ψ:E) (t:Tm) (σ:Sc) (t':Tm) (τ1 τ2:T)
+     (FR: FrA a1 (E_skvars ψ))
+     (WFT: WfT (ψ ::a a1) τ1)
+     (SS:  SubSumpTmA (ψ ::a a1) (t__TApp t τ1)  (open_Sc_wrt_T σ τ1) t' a2 τ2),
+     SubSumpTmA ψ t (S__Forall σ) t' (a1 ++ a2) τ2.
+#[export] Hint Constructors SubSumpTmA : core.
+
+Inductive SubSump' : E -> Sc -> Sc -> Prop :=    (* defn SubSumpTm *)
+ | SS'__M : forall (ψ:E) (σ:Sc) (τ:T)
+     (SS: SubSump ψ σ τ),
+     SubSump' ψ σ (S__T τ)
+ | SS'__R : forall (L:atoms) (ψ:E) (σ1:Sc) (σ2:Sc)
+     (SS: (forall α, α ∉ L -> SubSump' (ψ ::a [α]) σ1 (open_Sc_wrt_T σ2 (T__Var_f α)))),
+     SubSump' ψ σ1 (S__Forall σ2).
+#[export] Hint Constructors SubSump' : core.
+
+Inductive SubSumpTm' : E -> Tm -> Sc -> Tm -> Sc -> Prop :=    (* defn SubSumpTm *)
+ | SST'__M : forall (ψ:E) (t__in:Tm) (σ:Sc) (t__out:Tm) (τ:T)
+     (SS: SubSumpTm ψ t__in σ t__out τ),
+     SubSumpTm' ψ t__in σ t__out (S__T τ)
+ | SST'__R : forall (L:atoms) (ψ:E) (t1:Tm) (σ1:Sc) (t2:Tm) (σ2:Sc)
+     (SS: (forall α, α ∉ L -> SubSumpTm' (ψ ::a [α]) t1 σ1 (open_Tm_wrt_T t2 (T__Var_f α)) (open_Sc_wrt_T σ2 (T__Var_f α)))),
+     SubSumpTm' ψ t1 σ1 (t__TLam t2) (S__Forall σ2).
+#[export] Hint Constructors SubSumpTm' : core.
+
+
+Notation tag_of := TaggedAtom.tag_of.
+Definition alg (x:var) := is_true (tag_of x).
+Definition dec (x:var) := ~ is_true (tag_of x).
+
+Definition alg_L (L:vars) := forall α, α ∈ L -> alg α.
+Definition dec_L (L:vars) := forall α, α ∈ L -> dec α.
+
+Definition alg_A (a:A) := alg_L (varl a).
+Definition dec_A (a:A) := dec_L (varl a).
+
+Definition alg_E (ψ:E) := alg_L (E_skvars ψ).
+Definition dec_E (ψ:E) := dec_L (E_skvars ψ).
+
+Inductive Inst : Tm -> Sc -> Tm -> A -> T -> vars -> Prop :=    (* defn Inst *)
+ | InstM : forall (t:Tm) (τ:T) (L:vars),
+     Inst t (S__T τ) t nil τ L
+ | InstP : forall (α:skvar) (t1:Tm) (σ:Sc) (t2:Tm) (a:A) (τ:T) (L:vars)
+     (NIL: α ∉ L)
+     (ALG: alg alpha)
+     (INST:  Inst (t__TApp t1 (T__Var_f α))  ( open_Sc_wrt_T σ (T__Var_f α) )  t2 a τ (L \u singleton α) ),
+     Inst t1 (S__Forall σ) t2 (α :: a) τ L.
+#[export] Hint Constructors Inst : core.
+
+
+(*** End of embedded section *)
+}}

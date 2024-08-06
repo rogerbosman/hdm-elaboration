@@ -1,0 +1,78 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.List.
+Require Import Defs.Foralls.
+Require Import Defs.Subst.
+Require Import Defs.OpenClose.
+
+Require Import Complete.Ts.
+
+(*** open_Sc_wrt_Ts *)
+#[derive(equations=no)] Equations open_Sc_wrt_Ts : Sc -> Ts -> option T :=
+  open_Sc_wrt_Ts (S__T τ) [] := Some τ;
+  open_Sc_wrt_Ts (S__Forall σ) (τ :: τs) := open_Sc_wrt_Ts (open_Sc_wrt_T σ τ) τs;
+  open_Sc_wrt_Ts _ _ := None.
+
+#[derive(equations=no)] Equations open_Sc_wrt_τs' : Sc -> Ts -> option Sc :=
+  open_Sc_wrt_τs' σ [] := Some σ;
+  open_Sc_wrt_τs' (S__Forall σ) (τ :: τs) := open_Sc_wrt_τs' (open_Sc_wrt_T σ τ) τs;
+  open_Sc_wrt_τs' _ _ := None.
+
+Lemma open_Sc_wrt_τs_open_Sc_wrt_τs' : forall τs a τ__p τ__np,
+    open_Sc_wrt_Ts (∀ a ⬪ S__T τ__p) τs = Some τ__np
+  -> open_Sc_wrt_τs' (∀ a ⬪ S__T τ__p) τs = Some (S__T τ__np).
+Admitted.
+
+(*** open_Sc_wrt_A *)
+#[derive(equations=no)] Equations open_Sc_wrt_A : Sc -> A -> option T :=
+  open_Sc_wrt_A (S__T τ) [] := Some τ;
+  open_Sc_wrt_A (S__Forall σ) (α :: a) := open_Sc_wrt_A (open_Sc_wrt_T σ (T__Var_f α)) a;
+  open_Sc_wrt_A _ _ := None.
+
+Lemma open_Sc_wrt_τs'_snoc : forall τs σ__p τ σ__np,
+    open_Sc_wrt_τs' σ__p (τs ++ [τ]) = Some σ__np
+  -> foralls σ__p >= length τs + 1
+  -> exists σ__np', σ__np = (open_Sc_wrt_T σ__np' τ)
+  /\ open_Sc_wrt_τs' σ__p τs = Some (S__Forall σ__np').
+Proof.
+  intro τs. induction τs as [|τ τs].
+  - intros. destruct σ__p.
+    + simpl+ in H0. crush.
+    + simpl+ in H. inverts H. exists. splits. reflexivity. simpl+. crush.
+  - intros. destruct σ__p.
+    + simpl+ in H0. crush.
+    + simpl+ in H. forwards [σ__np' [EQ1 EQ2]]: IHτs. eassumption. crush. subst.
+      exists. simpl+. splits. reflexivity. eassumption.
+Qed.
+
+Lemma close_Sc_wrt_A_open_Sc_wrt_A_eq : forall a σ τ,
+    open_Sc_wrt_A σ a = Some τ
+  -> (∀ a ⬪ (S__T τ)) = σ.
+Admitted.
+
+Definition subst_skvar_option_T (τ:T) (α:skvar) : option T -> option T := option_map (subst_skvar_T τ α).
+#[export] Instance substable_skvar_option_T : substable (option T) T skvar := { subst := subst_skvar_option_T }.
+#[export] Hint Unfold subst substable_skvar_option_T subst_skvar_option_T : subst_skvar_option_T.
+Ltac unfold_subst_skvar_option_T := autounfold with subst_skvar_option_T.
+
+Lemma open_Sc_wrt_Ts_subst_skvar_Sc_dist : forall τs σ α__out τ__in,
+    lc τ__in
+  -> {τ__in ≔ α__out}(open_Sc_wrt_Ts σ τs) = (open_Sc_wrt_Ts ({τ__in ≔ α__out}σ) ({τ__in ≔ α__out}τs)).
+Proof.
+  intro τs. ind_Ts τs; introv LC.
+  - destruct σ. simpl+. crush. simpl+. crush.
+  - destruct σ. simpl+. crush.
+    simpl+. rewrite IHτs. rewrite subst_skvar_Sc_open_Sc_wrt_T. crush. crush. crush.
+Qed.
+
+Lemma subst_skvar_Sc_open_Sc_wrt_Ts : forall τs α__out τ__in σ τ__res,
+    open_Sc_wrt_Ts σ τs = Some τ__res
+  -> {τ__in ≔ α__out}open_Sc_wrt_Ts σ τs = {τ__in ≔ α__out}Some τ__res.
+Proof.
+  intro τs. ind_Ts τs; introv EQ.
+  - destruct σ; simpl in *; crush.
+  - destruct σ; simpl in *; crush.
+Qed.

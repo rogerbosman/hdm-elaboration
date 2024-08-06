@@ -1,0 +1,325 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.Foralls.
+Require Import Defs.Lc.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.gammaDef.
+Require Import Semantics.LogRel.
+Require Import Semantics.logrel_val_props.
+Require Import Semantics.Opsem.
+Require Import Semantics.rho.
+
+(*** Lemmas *)
+Fact comp_closed_vals_sk_helper : forall α β ρ,
+    β ∉ ({{α}} ∪ skvars_codom_rho ρ)
+  -> β ∉ (fv__α(⟦π1 ρ ▹ T__Var_f α⟧) ∪ fv__α(⟦π2 ρ ▹ T__Var_f α⟧)).
+Proof.
+  introv NIL. do 2 rewrite Sub_app_T_fsk'. simpl+.
+  forwards: proj1_skvars_codom_rho_Sub ρ.
+  forwards: proj2_skvars_codom_rho_Sub ρ.
+  fsetdec.
+Qed.
+
+Lemma open_Sc_wrt_T_rec_open_Sc_wrt_T_rec : forall α τ n m σ,
+    n >= m
+  -> lc(τ)
+  -> open_Sc_wrt_T_rec m (T__Var_f α) (open_Sc_wrt_T_rec (S n) τ σ) = open_Sc_wrt_T_rec n τ (open_Sc_wrt_T_rec m (T__Var_f α) σ).
+Proof.
+  intros. gen n m.
+  induction σ; intros. induction τ0. 2,3,4,5,6:crush.
+  simpl+. fequals. lt_eq_dec; simpl+; lt_eq_dec; crush.
+Qed.
+
+Lemma closed_vals_swap_rho : forall v1 v2 σ ρ__l ρ__r τ__α1 τ__α2 R__α α τ__β1 τ__β2 R__β β,
+    α <> β
+  -> α ∉ fv__α(τ__β1) ∪ fv__α(τ__β2)
+  -> β ∉ fv__α(τ__α1) ∪ fv__α(τ__α2)
+  -> closed_vals σ (ρ__l ++ (τ__α1, τ__α2, R__α, α) :: (τ__β1, τ__β2, R__β, β) :: ρ__r) v1 v2
+  -> closed_vals σ (ρ__l ++ (τ__β1, τ__β2, R__β, β) :: (τ__α1, τ__α2, R__α, α) :: ρ__r) v1 v2.
+Proof.
+  introv NEQ NI1 NI2 [IV1 [IV2 [TMTY1 TMTY2]]]. splits. 1,2:assumption.
+  - applys_eq TMTY1. dist.
+    rewrite subst_skvar_Sc_subst_skvar_Sc. 2,3:fsetdec.
+    rewrite subst_skvar_T_notin. reflexivity. fsetdec.
+  - applys_eq TMTY2. dist.
+    rewrite subst_skvar_Sc_subst_skvar_Sc. 2,3:fsetdec.
+    rewrite subst_skvar_T_notin. reflexivity. fsetdec.
+Qed.
+
+Lemma logrel_val_swap_rho : forall σ v1 v2 ρ__l ρ__r τ__α1 τ__α2 R__α α τ__β1 τ__β2 R__β β,
+    α <> β
+  -> α ∉ fv__α(τ__β1) ∪ fv__α(τ__β2)
+  -> β ∉ fv__α(τ__α1) ∪ fv__α(τ__α2)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ (ρ__l ++ (τ__α1, τ__α2, R__α, α) :: (τ__β1, τ__β2, R__β, β) :: ρ__r)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ (ρ__l ++ (τ__β1, τ__β2, R__β, β) :: (τ__α1, τ__α2, R__α, α) :: ρ__r).
+Proof.
+  introv NEQ NI1 NI2 VAL. gen ρ__l v1 v2.
+  forwards [n H]: calc_foralls σ. gen σ. induction n; intros; rename H into H__foralls.
+  destruct σ; [clear H__foralls | inverts H__foralls]. gen v1 v2 τ__α1 τ__α2 R__α α τ__β1 τ__β2 R__β β.
+  induction τ; intros; simp' in *; destruct VAL as [CV VAL]; split; try eauto using closed_vals_swap_rho.
+  - clear - NEQ VAL. ind_rho ρ__l. simpl+ in *. if_dec; crush. simpl+ in *. if_dec; crush.
+  - destruct VAL as [t1 [t2 [EQ1 [EQ2 VAL]]]]. exists t1 t2. splits.
+    + applys_eq EQ1. fequals. dist. rewrite subst_skvar_T_subst_skvar_T. 2,3:fsetdec.
+      rewrite (subst_skvar_T_notin τ__β1 β). 2:fsetdec. reflexivity.
+    + applys_eq EQ2. fequals. dist. rewrite subst_skvar_T_subst_skvar_T. 2,3:fsetdec.
+      rewrite (subst_skvar_T_notin τ__β2 β). 2:fsetdec. reflexivity.
+    + intros v1' v2' VAL'. apply IHτ1 in VAL'. 2:fsetdec. 2:crush. 2:fsetdec. specializes VAL v1' v2' VAL'.
+      destruct VAL as [TMTY1 [TMTY2 [v1'' [v2'' [OP1 [OP2 VAL]]]]]]. splits.
+      * applys_eq TMTY1. fequals. dist. rewrite subst_skvar_T_subst_skvar_T. 2,3:fsetdec.
+        rewrite (subst_skvar_T_notin τ__β1 β). 2:fsetdec. reflexivity.
+      * applys_eq TMTY2. fequals. dist. rewrite subst_skvar_T_subst_skvar_T. 2,3:fsetdec.
+        rewrite (subst_skvar_T_notin τ__β2 β). 2:fsetdec. reflexivity.
+      * exists v1'' v2''. splits. 1,2:assumption.
+        apply IHτ2 in VAL. eassumption. fsetdec. crush. fsetdec.
+  - destruct σ. simpl+ in H__foralls. all:inverts H__foralls.
+    simp' in *. destruct VAL as [CV [t1 [t2 [EQ1 [EQ2 VAL]]]]]. split. auto using closed_vals_swap_rho.
+    exists t1 t2. splits. 1,2:assumption.
+    intros τ1 τ2 R. specializes VAL τ1 τ2 R.
+    destruct VAL as [L VAL]. exists L.
+    intros α' NIL__α' RV. specializes VAL α' NIL__α' RV. destruct VAL as [TMTY1 [TMTY2 [v1' [v2' [OP1 [OP2 VAL]]]]]].
+    splits.
+    + applys_eq TMTY1. dist. rewrite subst_skvar_Sc_subst_skvar_Sc. 2,3:fsetdec.
+      rewrite subst_skvar_T_notin. 2:fsetdec. reflexivity.
+    + applys_eq TMTY2. dist. rewrite subst_skvar_Sc_subst_skvar_Sc. 2,3:fsetdec.
+      rewrite subst_skvar_T_notin. 2:fsetdec. reflexivity.
+    + exists v1' v2'. splits. 1,2:assumption.
+      forwards: IHn (open_Sc_wrt_T σ (T__Var_f α')) ((τ1, τ2, R, α') :: ρ__l). simpl+. crush. applys_eq VAL.
+      eassumption.
+Qed.
+
+Corollary logrel_val_swap_rho' : forall σ v1 v2 ρ τ__α1 τ__α2 R__α α τ__β1 τ__β2 R__β β,
+    α <> β
+  -> α ∉ fv__α(τ__β1) ∪ fv__α(τ__β2)
+  -> β ∉ fv__α(τ__α1) ∪ fv__α(τ__α2)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ((τ__α1, τ__α2, R__α, α) :: (τ__β1, τ__β2, R__β, β) :: ρ)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ((τ__β1, τ__β2, R__β, β) :: (τ__α1, τ__α2, R__α, α) :: ρ).
+Proof. introv NEQ NI1 NI2 VAL. forwards: logrel_val_swap_rho ([]:rho). 4:applys_eq VAL. all:crush. Qed.
+
+Lemma closed_vals_swap_R : forall σ ρ__l ρ__r (R2 R1:𝓡) v1 v2 τ1 τ2 α,
+    closed_vals σ (ρ__l ++ (τ1, τ2, R1, α) :: ρ__r) v1 v2
+  -> closed_vals σ (ρ__l ++ (τ1, τ2, R2, α) :: ρ__r) v1 v2.
+Proof.
+  introv [IV1 [IV2 [TMTY1 TMTY2]]]. dist in *. splits. 1,2:assumption.
+  - dist. assumption.
+  - dist. assumption.
+Qed.
+
+Lemma logrel_val_swap_R : forall σ ρ__l ρ__r (R2 R1:𝓡) v1 v2 τ1 τ2 α,
+    (forall v1 v2, R1 v1 v2 <-> R2 v1 v2)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ (ρ__l ++ (τ1, τ2, R1, α) :: ρ__r)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ (ρ__l ++ (τ1, τ2, R2, α) :: ρ__r).
+Proof.
+  intro σ. forall_ind σ. induction τ; introv RIFF VAL; simp' in *; split; destruct VAL as [CV VAL]; try eauto using closed_vals_swap_R.
+  - clear - VAL RIFF. ind_rho ρ__l. simpl+ in *. if_dec. apply RIFF. assumption. assumption.
+    simpl+ in *. if_dec. assumption. apply IHρ__l. eassumption.
+  - destruct VAL as [t1 [t2 [EQ1 [EQ2 VAL]]]]. exists t1 t2. splits.
+    + dist. dist in EQ1. assumption.
+    + dist. dist in EQ2. assumption.
+    + intros v1' v2' VAL'. eapply IHτ1 in VAL'. specializes VAL v1' v2' VAL'.
+      destruct VAL as [TMTY1 [TMTY2 [v1'' [v2'' [OP1 [OP2 VAL]]]]]]. splits.
+      * dist. dist in TMTY1. eassumption.
+      * dist. dist in TMTY2. eassumption.
+      * exists v1'' v2''. splits; eauto.
+      * crush.
+  - introv RIFF VAL. simp' in *. destruct VAL as [CV [t1 [t2 [EQ1 [EQ2 VAL]]]]].
+    split. eauto using closed_vals_swap_R. exists t1 t2. splits. 1,2:assumption.
+    intros τ1' τ2' R. specializes VAL τ1' τ2' R.
+    destruct VAL as [L VAL]. exists L.
+    intros β NIL__β RV. specializes VAL β NIL__β RV.
+    destruct VAL as [TMTY1 [TMTY2 [v1' [v2' [OP1 [OP2 VAL]]]]]]. splits.
+    + dist. dist in TMTY1. assumption.
+    + dist. dist in TMTY2. assumption.
+    + exists v1' v2'. splits. 1,2:assumption.
+      forwards: IHn ((τ1', τ2', R, β) :: ρ__l) R2 R1.
+      3:applys_eq VAL. simpl+. crush. crush. assumption.
+Qed.
+
+Corollary logrel_val_swap_R' : forall (R2 R1:𝓡) σ ρ v1 v2 τ1 τ2 α,
+    (forall v1 v2, R1 v1 v2 <-> R2 v1 v2)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ((τ1, τ2, R1, α) :: ρ)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ((τ1, τ2, R2, α) :: ρ).
+Proof. introv RIFF VAL. forwards: logrel_val_swap_R ([]:rho) R2 R1. crush. applys_eq VAL. applys_eq H. Qed.
+
+(*** Compositionality *)
+Lemma Compositionality__closedvals : forall σ n α τ ρ v1 v2,
+    α ∉ skvars_codom_Sub (π1 ρ) ∪ skvars_codom_Sub (π2 ρ) ∪ dom_Sub (π1 ρ) ∪ dom_Sub (π2 ρ) ∪ fv__α(σ)
+  -> fv__α(⟦π1 ρ ▹ τ⟧) ≡ (∅)
+  -> fv__α(⟦π2 ρ ▹ τ⟧) ≡ (∅)
+  -> lc(ρ)
+  -> lc_T ⟦π1 ρ ▹ τ⟧
+  -> lc_T ⟦π2 ρ ▹ τ⟧
+  -> closed_vals (open_Sc_wrt_T_rec n (T__Var_f α) σ) ((⟦π1 ρ ▹ τ⟧, ⟦π2 ρ ▹ τ⟧, logrel_val (S__T τ) ρ, α) :: ρ) v1 v2
+  <-> closed_vals (open_Sc_wrt_T_rec n τ σ) ρ v1 v2.
+Proof.
+  introv NI__α EQ1 EQ2 LC LC1 LC2. split; introv [IV1 [IV2 [TMTY1 TMTY2]]]; splits; try assumption.
+  - applys_eq TMTY1. dist. rewrite Sub_app_Sc_subst_skvar_Sc. 2:fsetdec. 2:rewrite EQ1; simpl+; fsetdec.
+    rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:assumption. simpl+. if_taut.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    fequals. symmetry. Sub_notin'. rewrite EQ1. crush. subst_notin'. reflexivity. fsetdec.
+  - applys_eq TMTY2. dist. rewrite Sub_app_Sc_subst_skvar_Sc. 2:fsetdec. 2:rewrite EQ2; simpl+; fsetdec.
+    rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:assumption. simpl+. if_taut.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    fequals. symmetry. Sub_notin'. rewrite EQ2. crush. subst_notin'. reflexivity. fsetdec.
+  - applys_eq TMTY1. symmetry. dist. rewrite Sub_app_Sc_subst_skvar_Sc. 2:fsetdec. 2:rewrite EQ1; simpl+; fsetdec.
+    rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:assumption. simpl+. if_taut.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    fequals. symmetry. Sub_notin'. rewrite EQ1. crush. subst_notin'. reflexivity. fsetdec.
+  - applys_eq TMTY2. symmetry. dist. rewrite Sub_app_Sc_subst_skvar_Sc. 2:fsetdec. 2:rewrite EQ2; simpl+; fsetdec.
+    rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:assumption. simpl+. if_taut.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto.
+    fequals. symmetry. Sub_notin'. rewrite EQ2. crush. subst_notin'. reflexivity. fsetdec.
+Qed.
+
+Corollary Compositionality__closedvals' : forall σ n α τ ρ v1 v2,
+    α ∉ (fv__α(σ) ∪ dom_rho ρ)
+  -> skvars_codom_rho ρ ≡ (∅)
+  -> lc(ρ)
+  -> (• ⊢wfτ ⟦π1 ρ ▹ τ⟧)
+  -> (• ⊢wfτ ⟦π2 ρ ▹ τ⟧)
+  -> closed_vals (open_Sc_wrt_T_rec n (T__Var_f α) σ) ((⟦π1 ρ ▹ τ⟧, ⟦π2 ρ ▹ τ⟧, logrel_val (S__T τ) ρ, α) :: ρ) v1 v2
+  <-> closed_vals (open_Sc_wrt_T_rec n τ σ) ρ v1 v2.
+Proof.
+  intros. apply Compositionality__closedvals. rewrite proj1_skvars_codom_rho_Sub. rewrite proj2_skvars_codom_rho_Sub.
+  split_rho. fsetdec. fv_empty. reflexivity. fv_empty. reflexivity.
+  assumption. eauto. eauto.
+Qed.
+
+Lemma Compositionality : forall v1 v2 σ α ρ τ,
+    α ∉ (fv__α(σ) ∪ dom_rho ρ)
+  -> lc((⟦π1 ρ ▹ τ⟧, ⟦π2 ρ ▹ τ⟧, logrel_val (S__T τ) ρ, α) :: ρ)
+  -> lc(τ)
+  -> (• ⊢wfτ ⟦π1 ρ ▹ τ⟧)
+  -> (• ⊢wfτ ⟦π2 ρ ▹ τ⟧)
+  -> skvars_codom_rho ρ ≡ (∅)
+  -> ⦅v1 × v2⦆ ∈ 𝒱⟦open_Sc_wrt_T σ (T__Var_f α)⟧ ((⟦π1 ρ ▹ τ⟧, ⟦π2 ρ ▹ τ⟧, logrel_val (S__T τ) ρ, α) :: ρ) <-> ⦅v1 × v2⦆ ∈ 𝒱⟦open_Sc_wrt_T σ τ⟧ ρ.
+Proof.
+  introv NIS LC LC__τ WFT1 WFT2 EMP. unfold open_Sc_wrt_T. generalize 0. gen v1 v2. apply cons_rho_lc in LC. destruct LC as [LC1 [LC2 LC]]. gen ρ.
+  forall_ind σ; intros. clear LC__τ. gen v1 v2. induction τ0; intros.
+
+  - simpl+. lt_eq_dec. 1,3:simp'; crush. split; intro VAL; simp' in VAL.
+    + simpl+ in VAL. if_taut. jauto.
+    + simp'. simpl+. if_taut. split. 2:jauto.
+      asserts_rewrite (S__T τ = open_Sc_wrt_T_rec 0 τ (S__T (T__Var_b 0))) in VAL. reflexivity.
+      forwards CV: props_logrel_val. eassumption.
+      rewrite <- Compositionality__closedvals' in CV; try eauto. applys_eq CV.
+
+  - simpl+. split; intro VAL.
+    + simp' in *. destruct VAL as [VALS VAL]. splits.
+      eapply closed_vals_weakening_compositionality. 2:eassumption. eapply comp_closed_vals_sk_helper. simpl+ in NIS. fsetdec.
+      simpl+ in *. if_dec. fsetdec. eassumption.
+    (** Same as last case *)
+    + simp' in *. destruct VAL as [VALS VAL]. splits.
+      eapply closed_vals_weakening_compositionality. 2:eassumption. eapply comp_closed_vals_sk_helper. simpl+ in NIS. fsetdec.
+      simpl+ in *. if_dec. fsetdec. eassumption.
+
+  - simpl+. simp'. split; intros [CV EQ]; split; destruct EQ; inverts H; crush; crush.
+
+  - simpl+. simp'. split; intros [CV EQ]; split; destruct EQ; inverts H; crush; crush.
+
+  - (** Conditions for subst_skvar_T_Sub_app_T_open_T_wrt_T*)
+    assert (α ∉ skvars_codom_rho ρ). clear - NIS EMP. fsetdec.
+    (** Now proof of case *)
+    split; intro VAL.
+    + simpl+ in *. simp' in VAL. destruct VAL as [VALS [t1 [t2 [EQ1 [EQ2 VAL]]]]]. simp'. splits.
+      forwards> CV: (Compositionality__closedvals' (S__T (T__Fun τ0_1 τ0_2))). 6:applys_eq VALS. 1,2,3,4,5:eauto.
+      applys_eq CV.
+      exists t1 t2. splits.
+      * applys_eq EQ1. dist. fequals. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+      * applys_eq EQ2. dist. fequals. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+      * intros v1' v2' VAL'. specializes VAL v1' v2'. specializes VAL.
+        apply IHτ0_1(* apply IHlc_T1 *); try eassumption. fsetdec. destruct VAL as [ClTmTy1 [ClTmTy2 [v1'' [v2'' [OP1 [OP2 VAL]]]]]].
+        splits.
+        -- applys_eq ClTmTy1. fequals. simpl+. dist. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+        -- applys_eq ClTmTy2. fequals. simpl+. dist. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+        -- exists v1'' v2''. splits. eassumption. eassumption. apply IHτ0_2(* apply IHlc_T2 *); try eassumption. fsetdec.
+    (** Repeat of previous with added symmetry *)
+    + simpl+ in *. simp' in VAL. destruct VAL as [VALS [t1 [t2 [EQ1 [EQ2 VAL]]]]]. simp'. splits.
+      forwards< CV: (Compositionality__closedvals' (S__T (T__Fun τ0_1 τ0_2))). 6:applys_eq VALS. 1,2,3,4,5:eauto.
+      applys_eq CV.
+      exists t1 t2. splits.
+      * applys_eq EQ1. dist. fequals. symmetry. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+      * applys_eq EQ2. dist. fequals. symmetry. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+      * intros v1' v2' VAL'. specializes VAL v1' v2'. specializes VAL.
+        apply IHτ0_1(* apply IHlc_T1 *); try eassumption. fsetdec. destruct VAL as [ClTmTy1 [ClTmTy2 [v1'' [v2'' [OP1 [OP2 VAL]]]]]].
+        splits.
+        -- applys_eq ClTmTy1. fequals. simpl+. dist. symmetry. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+        -- applys_eq ClTmTy2. fequals. simpl+. dist. symmetry. eauto using subst_skvar_T_Sub_app_T_open_T_wrt_T_rec.
+        -- exists v1'' v2''. splits. eassumption. eassumption. apply IHτ0_2(* apply IHlc_T2 *); try eassumption. fsetdec.
+
+  - simpl+. simp' in *. split; intros [CV [t1 [t2 [EQ1 [EQ2 VAL]]]]]; subst.
+    + split. forwards>: Compositionality__closedvals'. 6:instantiate (11 := S__Forall σ__Forall); applys_eq CV. 1,2,3,4,5:eauto. eassumption.
+      exists t1 t2. splits; try reflexivity.
+      intros τ1 τ2 R. specializes VAL τ1 τ2 R. destruct VAL as [L VAL]. exists (L ∪ {{α}} ∪ fv__α(⟦π1 ρ ▹ τ⟧) ∪ fv__α(⟦π2 ρ ▹ τ⟧)).
+      intros β NIL__β. specializes VAL β. intro RV. specializes VAL. fsetdec. assumption. destruct VAL as [TMTY1 [TMTY2 [v1 [v2 [OP1 [OP2 VAL]]]]]].
+      unfold open_Sc_wrt_T in VAL. rewrite open_Sc_wrt_T_rec_open_Sc_wrt_T_rec in VAL. 2:crush. 2:crush.
+      forwards IH': IHn (open_Sc_wrt_T_rec 0 (T__Var_f β) σ__Forall) ((τ1, τ2, R, β) :: ρ) v1 v2 n.
+        simpl+. crush. rewrite fsk_Sc_open_Sc_wrt_T_rec_upper. simpl+.
+        simpl+ in NIS. simpl+. clear - NIS NIL__β. fsetdec. dist. apply subst_skvar_T_lc_T; eauto. apply subst_skvar_T_lc_T; eauto.
+        eauto using rho_lc_cons_valid. dist. subst_notin'. assumption. fv_empty. dist. subst_notin'. assumption. fv_empty.
+        simpl+. fv_empty. simpl+. eassumption.
+      forwards VAL': logrel_val_swap_rho' VAL. clear - NIL__β. fsetdec. clear - NIL__β. fsetdec. fv_empty.
+      apply (logrel_val_swap_R' (logrel_val (S__T τ) ((τ1, τ2, R, β) :: ρ))) in VAL'. 2:eauto using logrel_val_weakening_compositionality.
+      forwards>: IH'. applys_eq VAL'. fequals. fequals. dist. clear - NIL__β. subst_notin. dist. clear - NIL__β. subst_notin.
+      split_rho. splits.
+      * applys_eq TMTY1. dist. fequals. rewrite (Sub_app_Sc_subst_skvar_Sc ⟦π1 ρ ▹ τ⟧).
+          2:apply proj1_skvars_codom_rho_Sub_hint; fsetdec.
+          2:fv_empty'; [simpl+; fsetdec|eauto].
+        rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:eauto. simpl+. if_dec. clear - NIL__β. fsetdec.
+        rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:auto. simpl+. if_taut. subst_notin'. 2:fsetdec.
+        rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. fequals.
+        rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. fequals.
+        symmetry. Sub_notin'. fv_empty.
+      * applys_eq TMTY2. dist. fequals. rewrite (Sub_app_Sc_subst_skvar_Sc ⟦π2 ρ ▹ τ⟧).
+          2:apply proj2_skvars_codom_rho_Sub_hint; fsetdec.
+          2:fv_empty'; [simpl+; fsetdec|eauto].
+        rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:eauto. simpl+. if_dec. clear - NIL__β. fsetdec.
+        rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:auto. simpl+. if_taut. subst_notin'. 2:fsetdec.
+        rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. fequals.
+        rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. fequals.
+        symmetry. Sub_notin'. fv_empty.
+      * do 2 eexists. splits. eassumption. eassumption. unfold open_Sc_wrt_T. rewrite open_Sc_wrt_T_rec_open_Sc_wrt_T_rec. eassumption. crush. eauto.
+    + split. forwards<: Compositionality__closedvals'. 6:instantiate (4 := S__Forall σ__Forall); applys_eq CV. 1,2,3,4,5: eauto. eassumption.
+      exists t1 t2. splits; try reflexivity.
+      intros τ1 τ2 R. specializes VAL τ1 τ2 R. destruct VAL as [L VAL]. exists (L ∪ {{α}} ∪ fv__α(⟦π1 ρ ▹ τ⟧) ∪ fv__α(⟦π2 ρ ▹ τ⟧)).
+      intros β NIL__β. specializes VAL β. intro RV. specializes VAL. fsetdec. assumption. destruct VAL as [TMTY1 [TMTY2 [v1 [v2 [OP1 [OP2 VAL]]]]]].
+      unfold open_Sc_wrt_T in VAL. rewrite open_Sc_wrt_T_rec_open_Sc_wrt_T_rec in VAL. 2:crush. 2:crush.
+      forwards IH': IHn (open_Sc_wrt_T_rec 0 (T__Var_f β) σ__Forall) ((τ1, τ2, R, β) :: ρ) v1 v2 n.
+        simpl+. crush. rewrite fsk_Sc_open_Sc_wrt_T_rec_upper. simpl+.
+        simpl+ in NIS. simpl+. clear - NIS NIL__β. fsetdec. dist. apply subst_skvar_T_lc_T; eauto. apply subst_skvar_T_lc_T; eauto.
+        eauto using rho_lc_cons_valid. dist. subst_notin'. assumption. fv_empty. dist. subst_notin'. assumption. fv_empty.
+        simpl+. fv_empty. simpl+. eassumption.
+      forwards<: IH'. applys_eq VAL.
+      apply (logrel_val_swap_R' (logrel_val (S__T τ) ρ)) in H. 2:symmetry; eauto using logrel_val_weakening_compositionality.
+      forwards VAL': logrel_val_swap_rho' H. clear - NIL__β. fsetdec. fv_empty. simpl+.
+        dist. subst_notin'. 2:fsetdec. dist. subst_notin'. 2:fsetdec. fsetdec.
+      split_rho. splits.
+      * applys_eq TMTY1. dist. fequals. rewrite (Sub_app_Sc_subst_skvar_Sc ⟦π1 ρ ▹ τ⟧).
+          2:apply proj1_skvars_codom_rho_Sub_hint; fsetdec.
+          2:fv_empty'; [simpl+; fsetdec|eauto].
+        rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:eauto. simpl+. if_dec. clear - NIL__β. fsetdec.
+        rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:auto. simpl+. if_taut. subst_notin'. 2:fsetdec.
+        rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. fequals.
+        rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. fequals.
+        Sub_notin'. fv_empty.
+      * applys_eq TMTY2. dist. fequals. rewrite (Sub_app_Sc_subst_skvar_Sc ⟦π2 ρ ▹ τ⟧).
+          2:apply proj2_skvars_codom_rho_Sub_hint; fsetdec.
+          2:fv_empty'; [simpl+; fsetdec|eauto].
+        rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:eauto. simpl+. if_dec. clear - NIL__β. fsetdec.
+        rewrite subst_skvar_Sc_open_Sc_wrt_T_rec. 2:auto. simpl+. if_taut. subst_notin'. 2:fsetdec.
+        rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T. 2:eauto. fequals.
+        rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. rewrite Sub_app_Sc_open_Sc_wrt_T_rec. 2:eauto. fequals.
+        Sub_notin'. fv_empty.
+      * do 2 eexists. splits. eassumption. eassumption. unfold open_Sc_wrt_T. rewrite open_Sc_wrt_T_rec_open_Sc_wrt_T_rec.
+        applys_eq VAL'. dist. fequals. subst_notin'. 2:fsetdec. subst_notin'. fsetdec. crush. crush.
+Qed.

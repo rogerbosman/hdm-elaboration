@@ -1,0 +1,80 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+
+Require Import Defs.Lc.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+Require Import Defs.WfSTt.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.Compositionality.
+Require Import Semantics.gamma.
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.LogRelEProps.
+Require Import Semantics.logrel_val_props.
+Require Import Semantics.Opsem.
+Require Import Semantics.rho.
+
+(*** TApp *)
+(* Fact wf_Sub_app_T : forall ψ θ τ, *)
+(*     ψ ⊢θ θ *)
+(*   -> ψ ⊢wfτ τ *)
+(*   -> ψ ⊢wfτ ⟦θ ▹ τ⟧. *)
+(* Admitted. *)
+
+(* Fact ρ_in_𝒟_wf_Sub1 : forall ρ ψ, *)
+(*     ρ ∈ 𝒟⟦ψ⟧ *)
+(*   -> • ⊢θ π1 ρ. *)
+(* Admitted. *)
+(* Fact ρ_in_𝒟_wf_Sub2 : forall ρ ψ, *)
+(*     ρ ∈ 𝒟⟦ψ⟧ *)
+(*   -> • ⊢θ π2 ρ. *)
+(* Admitted. *)
+(* #[export] Hint Resolve ρ_in_𝒟_wf_Sub1 ρ_in_𝒟_wf_Sub2 : core. *)
+
+(* Lemma Sub_app_T_lc : forall (θ:Sub) (τ:T), *)
+(*     lc(τ) *)
+(*   -> lc(θ) *)
+(*   -> lc(⟦θ ▹ τ⟧). *)
+(* Admitted. *)
+
+
+Lemma Rel_logrel_val : forall τ ρ,
+    Rel (logrel_val (S__T τ) ρ) ⟦π1 ρ ▹ τ⟧ ⟦π2 ρ ▹ τ⟧.
+Proof. intros. unfolds. intros. destruct τ; simp' in H; crush. Qed.
+
+Lemma CompatTApp : forall ψ t t' σ τ,
+    ψ ⊢t≈ t ≈ t' ▸ S__Forall σ
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__TApp t τ ≈ t__TApp t' τ ▸ open_Sc_wrt_T σ τ.
+Proof.
+  introv [TmTy1 [TmTy2 IH]] WF. splits.
+  - crush.
+  - crush.
+  - introv IN. specializes IH IN. destruct IH as [TmTyCl1 [TmTyCl2 [v1 [v2 [OP1 [OP2 VAL]]]]]].
+    simpl+. splits.
+    + forwards H: TmTy_close1 ρ γ. apply TmTy__TApp. eassumption. apply TmTy1. eassumption.
+      simpl+ in H. eassumption.
+    + forwards H: TmTy_close2 ρ γ. apply TmTy__TApp. eassumption. apply TmTy2. eassumption.
+      simpl+ in H. eassumption.
+    + simp' in VAL. destruct VAL as [CLV [t1' [t2' [EQ1 [EQ2 IH]]]]]. subst.
+      specializes IH (⟦π1 ρ ▹ τ⟧) (⟦π2 ρ ▹ τ⟧) (logrel_val (S__T τ) ρ). destruct IH as [L IH].
+      forwards [α NIL__α]: atom_fresh (L ∪ ((fv__α(σ) ∪ dom_rho ρ) ∪ skvars_codom_rho ρ)).
+      specializes IH α. specializes IH. fsetdec. simpl+.
+      splits; try eauto using Rel_logrel_val, T_close1, T_close2 with slow.
+      destruct IH as [TMTY1 [TMTY2 [v1 [v2 [OP1' [OP2' IH]]]]]].
+      apply Compositionality in IH. 2:fsetdec.
+      2:apply rho_lc_cons; eauto using Sub_app_T_lc.
+      do 2 eexists. splits. 3:apply IH.
+      * etransitivity. rewrite <- make_EC_t__TApp. apply t_ss__EC_refl_trans. eassumption.
+        simpl+. eauto.
+      * etransitivity. rewrite <- make_EC_t__TApp. apply t_ss__EC_refl_trans. eassumption.
+        simpl+. eauto.
+      * eauto.
+      * eauto using T_close1.
+      * eauto using T_close2.
+      * eauto using logrel_E_skvars_codom_rho_empty.
+Qed.

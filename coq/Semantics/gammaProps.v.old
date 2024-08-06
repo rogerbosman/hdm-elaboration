@@ -1,0 +1,18 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+(* Require Import Defs.HdmLems. *)
+
+Require Import Defs.Lc.
+(* Require Import Defs.List. *)
+(* Require Import Defs.Sub. *)
+(* Require Import Defs.Subx. *)
+(* Require Import Defs.TmTy. *)
+
+(* Require Import Semantics.ClosedVals. *)
+(* Require Import Semantics.Compositionality. *)
+Require Import Semantics.gammaDef.
+Require Import Semantics.LogRel.
+(* Require Import Semantics.Opsem. *)
+(* Require Import Semantics.rhoDef. *)
+

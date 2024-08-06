@@ -1,0 +1,124 @@
+indexvar   index, in, out, dec, alg ::= {{ coq nat }}
+
+
+metavar   var
+        , x {{ tex x }}
+        ::= {{ com expression variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   tvar
+        , tx {{ tex x }}
+        ::= {{ com term variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   skvar
+        , alpha {{ tex \alpha }}
+        , beta {{ tex \beta }}
+        ::= {{ com skollem variable }} {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+grammar
+  Ex, e {{ tex e }} :: 'e__' ::= {{ com Terms }} {{ coq-equality }}
+    | x                    ::   :: Var                     {{ com Term variable }}
+    | unit                 ::   :: Unit                    {{ com Unit }}
+    | e1 e2                ::   :: App                     {{ com Term Application }}
+    | \ x . e              ::   :: Lam (+ bind x in e  +)  {{ com Term Abstraction }}
+    | let x = e1 inlet e2  ::   :: Let (+ bind x in e2 +)  {{ com Let binding }}
+
+  T, tau {{ tex \tau }} :: 'T__' ::= {{ com Types }} {{ coq-equality }}
+    | alpha      ::   :: Skvar {{ com Skolem variable }}
+    | Unit     ::   :: Unit  {{ com Unit type }}
+    | tau1 -> tau2 ::   :: Fun    {{ com Function type }}
+    | ( tau )    :: S :: Paren {{ com Parenthesis }} {{ icho [[tau]] }}
+
+  Sc, sigma {{ tex \sigma }} :: 'S__' ::= {{ com Type schemes }} {{ coq-equality }}
+    | tau              ::   :: T                           {{ com Monotype }}
+    | forall alpha . sigma ::   :: Forall (+ bind alpha in sigma +) {{ com Forall }}
+    | [ tau / alpha ] sigma  :: M :: SubstSk                     {{ com Skolem substitution }}
+                                                          {{ coq ( subst [[tau]] [[alpha]] [[sigma]] ) }}
+    | theta sigma          :: M :: SubstSub                    {{ com Multiple Skolem substitution }}
+                                                          {{ coq ( ⟦ [[theta]] ▹ [[sigma]] ⟧ ) }}
+
+  Tm, t {{ tex t }} :: 't__' ::= {{ com Elaborated terms }} {{ coq-equality }}
+    | tx                            ::   :: Tvar                      {{ com Term variable }}
+    | unit                          ::   :: Unit                      {{ com Unit }}
+    | t1 t2                         ::   :: App                       {{ com Term Application }}
+    | t [ tau ]                       ::   :: TApp                      {{ com Type Application }}
+    | \ ( tx : sigma ) . t              ::   :: Lam  (+ bind tx  in t  +) {{ com Term Abstraction }}
+    | \\ alpha . t                    ::   :: Tlam (+ bind alpha in t  +) {{ com Type Abstraction }}
+    | let ( tx : sigma ) = t1 inlet t2 ::   :: Let  (+ bind tx  in t2 +) {{ com Let binding }}
+    | theta t                         :: M :: SubstSub                  {{ com Multiple Skolem substitution }}
+                                                                      {{ coq ( ⟦ [[theta]] ▹ [[t]] ⟧ ) }}
+
+
+substitutions
+  single e var   :: subst_var
+
+  single tau skvar :: subst_skvar
+
+  single Tm tvar  :: subst_tvar
+
+freevars
+  e var   :: fv
+
+  tau skvar  :: fsk
+
+  t tvar  :: ftv
+
+
+grammar
+  A, a {{ tex A }} :: 'A__' ::=  {{ com Type variable list }} {{ coq list skvar }}
+    | bullet        :: M :: Nil    {{ com Empty A }} {{ coq nil }}
+    | a ; alpha       :: M :: Cons   {{ com Cons A }}  {{ coq ( cons [[alpha]] [[a]] ) }}
+    | ( a )         :: M :: Paren  {{ com Parenthesis }} {{ icho [[a]]  }}
+    | < alpha >       :: M :: One    {{ com Singleton }} {{ coq ( [[alpha]] :: nil ) }}
+    | < alpha ; beta > :: M :: Two    {{ com Twingleton }} {{ coq ( cons [[beta]] ([[alpha]] :: nil) ) }}
+    | a1 ++ a2      :: M :: App    {{ com Append }} {{ coq ( [[a2]] ++ [[a1]] ) }}
+
+  E, psi {{ tex \Psi }} :: 'E__' ::= {{ com Environment }}
+    | bullet              ::   :: Nil     {{ com Empty environment }}
+    | psi ; a               ::   :: A       {{ com Cons Existential environment }}
+    | psi ; x : sigma          ::   :: Var     {{ com Cons Variable }}
+    | psi ; { t : [ a ] sigma } ::   :: Obj    {{ com Cons Object }}
+    | psi ; { t :       sigma } :: S :: ObjNoA {{ com Cons Object }}
+                                          {{ coq (E__Obj [[psi]] [[t]] (nil:A) [[sigma]]) }}
+    | psi ; { t           } :: M :: ObjNoSc {{ com Cons Object }}
+                                          {{ coq (E__Obj [[psi]] [[t]] (nil:A) (S__T T__Unit)) }}
+    | psi1 + psi2             :: M :: App     {{ com Eironment append }}
+                                          {{ coq (E__app [[psi1]] [[psi2]]) }}
+    | [ tau / alpha ] psi       :: M :: TSubst  {{ com Existential variable substitution }}
+                                          {{ coq ( subst [[tau]] [[alpha]] [[psi]] ) }}
+
+  Eqs, eqs {{ tex \Theta }} :: 'Eqs__' ::= {{ coq-equality }} {{ coq list (T * T) }}
+    | bullet          ::   :: Nil   {{ com Empty equaltities }}
+                                    {{ coq nil }}
+    | tau1 sim tau2 ; eqs ::   :: Cons  {{ com Cons Equality }}
+                                    {{ coq ( ([[tau1]],[[tau2]]) :: [[eqs]] ) }}
+    | < tau1 sim tau2 >   :: S :: One   {{ com Singleton }}
+                                    {{ coq ( ([[tau1]],[[tau2]]) :: nil ) }}
+    | [ tau / alpha ] eqs :: M :: Subst {{ com Existential variable substitution }}
+                                    {{ coq ( subst [[tau]] [[alpha]] [[eqs]] ) }}
+
+  E_and_Eqs {{ tex (E \vdash \Theta) }} :: 'E_and_Eqs__' ::= {{ com E and Eqs pair (for unification) }} {{ coq (E * list (T * T)) }}
+    | psi |- Eqs :: M :: Pair {{ com Pair }}
+                            {{ coq ( [[psi]] , [[Eqs]] ) }}
+
+  Sub, theta {{ tex \theta }} :: 'Sub__' ::= {{ coq-equality }} {{ coq list (T * skvar) }}
+    | bullet               ::   :: Nil     {{ com Empty substitution }}
+                                           {{ coq nil }}
+    | [ tau / alpha ] dot theta  ::   :: Cons    {{ com Cons substitution }}
+                                           {{ coq ( ( [[tau]], [[alpha]] ) :: [[theta]] ) }}
+    | theta1 + theta2          :: M :: App    {{ com Append }}
+                                             {{ coq ([[theta1]] ++ [[theta2]])  }}
+    | ( theta )              :: M :: Paren     {{ com Parenthesis }}
+                                             {{ icho [[theta]]  }}
+
+  vars, L :: 'L__' ::= {{ coq-equality }} {{ coq atoms }}

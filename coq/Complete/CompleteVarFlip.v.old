@@ -1,0 +1,160 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+
+Require Import Defs.EInst.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+Require Import Defs.List.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.SubSump.
+Require Import Defs.TmTy.
+
+Require Import LibHyps.LibHyps.
+
+Notation  "a ### ψ"  := (FrA a ψ) (at level 50, format "a  ###  ψ") : type_scope.
+
+Require Import Complete.PrincipalTyping.
+
+Axiom FundamentalProperty : forall ψ t σ,
+    ψ  ⊢t t ▸ σ
+  -> ψ  ⊢t≈ t ≈ t ▸ σ.
+Axiom CompatTLam : forall L ψ t t' σ,
+    (forall α, α ∉ L -> ψ ::a [α] ⊢t≈ (open_Tm_wrt_T t (T__Var_f α)) ≈ (open_Tm_wrt_T t' (T__Var_f α)) ▸ open_Sc_wrt_T σ (T__Var_f α))
+  -> ψ ⊢t≈ t__TLam t ≈ t__TLam t' ▸ S__Forall σ.
+Axiom CompatTApp : forall ψ t t' σ τ,
+    ψ ⊢t≈ t ≈ t' ▸ S__Forall σ
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__TApp t τ ≈ t__TApp t' τ ▸ open_Sc_wrt_T σ τ.
+
+Check repeat S__Forall.
+Check fold_right compose id (repeat S__Forall 3).
+
+Definition app_forall (n:nat) := fold_right compose id (repeat S__Forall n).
+
+Compute app_forall 3 (S__T T__Unit).
+
+Inductive SubSumpTmI : E -> Tm -> Sc -> Tm -> T -> Prop :=    (* defn SubSumpTm *)
+ | SSTI__M : forall (ψ:E) (t:Tm) (τ:T),
+     SubSumpTmI ψ t (S__T τ) t τ
+ | SSTI__L : forall (ψ:E) (t:Tm) (σ:Sc) (t':Tm) (τ1 τ2:T) (τs:list T)
+     (WFT: WfT ψ τ1)
+     (SS:  SubSumpTm ψ (t__TApp t τ1) (app_forall (length τs) (open_Sc_wrt_T σ τ1)) t' τ2),
+     SubSumpTmI ψ t (app_forall (length τs) (S__Forall σ)) t' τ2.
+#[export] Hint Constructors SubSumpTmI : core.
+
+(*** Defs *)
+
+Definition close_Sc_wrt_A_right : Sc -> A -> Sc := fold_right (fun α σ => S__Forall (close_Sc_wrt_T α σ)).
+Definition close_Sc_wrt_A_left : Sc -> A -> Sc := flip (fold_left (fun σ α => S__Forall (close_Sc_wrt_T α σ))).
+Definition close_Tm_wrt_A_right : Tm -> A -> Tm := fold_right (fun α σ => t__TLam (close_Tm_wrt_T α σ)).
+Definition close_Tm_wrt_A_left : Tm -> A -> Tm := flip (fold_left (fun t α => t__TLam (close_Tm_wrt_T α t))).
+
+
+Notation "'Λ' a ⬪ t"  := (close_Tm_wrt_A_left t a) (at level 70, format "'Λ'  a  ⬪  t") : type_scope.
+Notation "∀ a ⬪ t"  := (close_Sc_wrt_A_left t a) (at level 70, format "∀  a  ⬪  t") : type_scope.
+
+Definition apply_A_left : Tm -> A -> Tm := fun t a => fold_left (fun (t:Tm) (α:skvar) => t__TApp t (T__Var_f α)) a t.
+
+#[derive(equations=no)] Equations open_Sc_wrt_τs : Sc -> list T -> option T :=
+  open_Sc_wrt_τs (S__T τ) [] := Some τ;
+  open_Sc_wrt_τs (S__Forall σ) (τ :: τs) := open_Sc_wrt_τs (open_Sc_wrt_T σ τ) τs;
+  open_Sc_wrt_τs _ _ := None.
+
+#[derive(equations=no)] Equations open_Sc_wrt_τs' : Sc -> list T -> option Sc :=
+  open_Sc_wrt_τs' σ [] := Some σ;
+  open_Sc_wrt_τs' (S__Forall σ) (τ :: τs) := open_Sc_wrt_τs' (open_Sc_wrt_T σ τ) τs;
+  open_Sc_wrt_τs' _ _ := None.
+
+(* Definition apply_t_list_right : Tm -> list T -> Tm := fold_right (fun (τ:T) (t:Tm) => t__TApp t τ). *)
+Definition apply_t_list_left : Tm -> list T -> Tm := fun t τs => fold_left (fun (t:Tm) (τ:T) => t__TApp t τ) τs t.
+
+(*** Left fold cons *)
+
+Lemma apply_A_left_cons : forall a t α,
+    apply_A_left t (α :: a) = apply_A_left (t__TApp t (T__Var_f α)) a.
+Proof. intros. norm. unfold apply_A_left. rewrite fold_left_app. simpl+. reflexivity. Qed.
+#[local] Hint Rewrite apply_A_left_cons : core.
+Arguments apply_A_left _ _ : simpl never.
+
+Lemma close_Sc_wrt_A_left_cons : forall σ α a,
+    close_Sc_wrt_A_left σ (α :: a) = close_Sc_wrt_A_left (S__Forall (close_Sc_wrt_T α σ)) a.
+Proof. intros. norm. unfold close_Sc_wrt_A_left. unfold flip. rewrite fold_left_app. simpl+. reflexivity. Qed.
+#[local] Hint Rewrite close_Sc_wrt_A_left_cons : core.
+Arguments close_Sc_wrt_A_left _ _ : simpl never.
+
+Lemma close_Tm_wrt_A_left_cons : forall t α a,
+    close_Tm_wrt_A_left t (α :: a) = close_Tm_wrt_A_left (t__TLam (close_Tm_wrt_T α t)) a.
+Proof. intros. norm. unfold close_Tm_wrt_A_left. unfold flip. rewrite fold_left_app. simpl+. reflexivity. Qed.
+#[local] Hint Rewrite close_Tm_wrt_A_left_cons : core.
+Arguments close_Tm_wrt_A_left _ _ : simpl never.
+
+Arguments open_Sc_wrt_τs _ _ : simpl never.
+Arguments apply_t_list_left _ _ : simpl never.
+
+
+Lemma Complete_SubSumpTmI_helper__SS : forall (a__p : A) (ψ : E) (t1 : Tm) (τ__p : T) (τ__np : T) (τs : list T),
+    open_Sc_wrt_τs (∀ a__p ⬪ S__T τ__p) τs = Some τ__np
+  -> length τs = length a__p
+  -> SubSumpTmI ψ (Λ a__p ⬪ apply_A_left t1 a__p) (∀ a__p ⬪ S__T τ__p) (apply_t_list_left t1 τs) τ__np.
+Proof.
+  intro a__p. induction a__p as [|α__p a__p]; introv EQ__τ EQ__len.
+  - admit.
+  (* - simpl+. destruct τs; simpl+ in EQ__len; inverts EQ__len. simpl+. crush.  *)
+  - destruct τs as [|τ τs]; simpl+ in EQ__len; inverts EQ__len.
+    simpl+ in *.
+    assert (ψ ⊢wfτ τ). admit.
+    econstructor. eassumption. applys_eq IHa__p.
+    simpl+ in EQ__τ. rewrite <- subst_skvar_Sc_spec in EQ__τ. rewrite subst_skvar_Sc_close_Sc_wrt_A in EQ__τ. 2:eauto. 2,3:admit.
+
+    specializes IHa__p. eassumption. eassumption. inverts IHa__p.
+
+    applys_eq SS.
+
+(*** App *)
+Lemma close_Sc_wrt_A_left_app : forall a1 a2 σ,
+    close_Sc_wrt_A_left σ (a1 ++ a2) = close_Sc_wrt_A_left (close_Sc_wrt_A_left σ a1) a2.
+Proof. intro a1. induction a1; crush. Qed.
+#[local] Hint Rewrite close_Sc_wrt_A_left_app : core.
+
+Lemma close_Tm_wrt_A_left_app : forall a1 a2 t,
+    close_Tm_wrt_A_left t (a1 ++ a2) = close_Tm_wrt_A_left (close_Tm_wrt_A_left t a1) a2.
+Proof. intro a1. induction a1; crush. Qed.
+#[local] Hint Rewrite close_Tm_wrt_A_left_app : core.
+
+Lemma apply_A_left_app : forall a1 a2 t,
+    apply_A_left t (a1 ++ a2) = apply_A_left (apply_A_left t a1) a2.
+Proof. intro a1. induction a1; crush. Qed.
+#[local] Hint Rewrite apply_A_left_app : core.
+
+About app_assoc_reverse.
+
+Lemma list_rev_destr : forall {X:Type} (xs : list X),
+    xs = [] \/ exists x xs', xs = xs' ++ [x].
+Admitted.
+
+#[export] Hint Rewrite app_length : core.
+
+
+(*** Lems *)
+
+Lemma Complete_SubSumpTm_helper__SS : forall (a__p : A) (ψ : E) (t1 : Tm) (τ__p : T) (τ__np : T) (τs : list T),
+    open_Sc_wrt_τs (∀ a__p ⬪ S__T τ__p) τs = Some τ__np
+  -> length τs = length a__p
+  -> SubSumpTm ψ (Λ a__p ⬪ apply_A_left t1 a__p) (∀ a__p ⬪ S__T τ__p) (apply_t_list_left t1 τs) τ__np.
+Proof.
+  intro a__p. induction a__p as [|α__p a__p] using rev_ind; introv EQ__τ EQ__len.
+  - simpl+. destruct τs; simpl+ in EQ__len; inverts EQ__len. simpl+. crush.
+  - forwards: (list_rev_destr τs). destruct H as [|[τ [τs' ?EQ]]]; subst. admit.
+    simpl+ in *.
+    assert (ψ ⊢wfτ τ). admit.
+    econstructor. eassumption. applys_eq IHa__p.
+    simpl+ in EQ__τ. rewrite <- subst_skvar_Sc_spec in EQ__τ. rewrite subst_skvar_Sc_close_Sc_wrt_A in EQ__τ. 2:eauto. 2,3:admit.
+
+    specializes IHa__p. eassumption. eassumption. inverts IHa__p.
+
+    applys_eq SS.

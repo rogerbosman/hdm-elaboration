@@ -1,0 +1,381 @@
+indexvar index, in, out ::= {{ coq nat }}
+
+metavar   var
+        , x {{ tex x }}
+        , y {{ tex y }}
+        ::= {{ com expression variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   tvar
+        , tx {{ tex x }}
+        , ty {{ tex y }}
+        ::= {{ com term variable }}
+            {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   skvar
+        , ska {{ tex \widehat{ \text{a} } }}
+        , skb {{ tex \widehat{ \text{b} } }}
+        ::= {{ com skollem variable }} {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   exvar
+        , exa {{ tex \widehat{\alpha} }}
+        , exb {{ tex \widehat{\beta} }}
+        ::= {{ com existential variable }}
+            {{ coq atom }}
+            {{ coq-equality apply eq_dec. }}
+            {{ lex alphanum }}
+
+grammar
+  e :: 'e_' ::= {{ com Terms }} {{ coq-equality }}
+    | x                    ::   :: var                     {{ com Term variable }}
+    | unit                 ::   :: unit                    {{ com Unit }}
+    | e1 e2                ::   :: app                     {{ com Term Application }}
+    | \ x . e              ::   :: lam (+ bind x in e  +)  {{ com Term Abstraction }}
+    | let x = e1 inlet e2  ::   :: let (+ bind x in e2 +)  {{ com Let binding }}
+    % | ( e )                :: S :: Paren                   {{ com Parenthesis }} {{ icho [[e]] }}
+
+  T {{ tex \tau }} {{ coq τ }} :: 'T_' ::= {{ com Types }} {{ coq-equality }}
+    | ska      ::   :: skvar {{ com Skolem variable }}
+    | exa      ::   :: exvar {{ com Exitential variable }}
+    | Unit     ::   :: unit  {{ com Unit type }}
+    | T1 -> T2 ::   :: fn    {{ com Function type }}
+    | ( T )    :: S :: paren {{ com Parenthesis }} {{ icho [[ T]] }}
+
+  S {{ tex \sigma }} {{ coq σ }} :: 'S_' ::= {{ com Type schemes }} {{ coq-equality }}
+    | T             ::   :: T                      {{ com Monotype }}
+    | forall ska . S ::   :: Forall (+ bind ska in S +) {{ com Forall }}
+    | [ T / ska ] S :: M :: SubstSk                      {{ com Skolemm substitution }}
+                                                         {{ coq ( subst_skvar_in_S [[T]] [[ska]] [[S]] ) }}
+    % | [ T / exa ] S :: M :: SubstEx                      {{ com Existential substitution }}
+    %                                                      {{ coq ( subst_exvar_in_S [[T]] [[exa]] [[S]] ) }}
+    % | DSub Sch         :: M :: SubInst                      {{ com Instatiation substitution }}
+    %                                                         {{ coq ( DSub_app [[Sch]] [[DSub]] ) }}
+
+  t :: 't_' ::= {{ com Elaborated terms }} {{ coq-equality }}
+    | tx                           ::   :: Tvar                      {{ com Term variable }}
+    | unit                         ::   :: Unit                      {{ com Unit }}
+    | t1 t2                        ::   :: App                       {{ com Term Application }}
+    | t [ T ]                      ::   :: Tapp                      {{ com Type Application }}
+    | \ ( tx : S ) . t             ::   :: Lam  (+ bind tx  in t  +) {{ com Term Abstraction }}
+    | \\ ska . t                   ::   :: Tlam (+ bind ska in t  +) {{ com Type Abstraction }}
+    | let ( tx : S ) = t1 inlet t2 ::   :: Let  (+ bind tx  in t2 +) {{ com Let binding }}
+    % | ( t )                        :: S :: Paren                      {{ com Parenthesis }} {{ icho [[t]] }}
+
+substitutions
+  single e var   :: subst_var_in
+
+  single T skvar :: subst_skvar_in
+  single T exvar :: subst_exvar_in
+
+  single t tvar  :: subst_tvar_in
+
+freevars
+  e var   :: free_vars_in
+
+  T skvar  :: free_skvars_in
+  T exvar  :: free_exvars_in
+
+  t tvar  :: free_tvars_in
+
+grammar
+  A {{ tex A }} :: 'A_' ::=  {{ com Existential environment }} {{ coq list exvar }}
+    | bullet        :: M :: Nil      {{ com Empty A }} {{ coq nil }}
+    | A ; exa        :: M :: Cons       {{ com Cons A }}  {{ coq ( cons [[exa]] [[A]] ) }}
+    | ( A )         :: M :: Paren      {{ com Parenthesis }} {{ icho [[A]]  }}
+    | < exa >       :: M :: One  {{ com Singleton }} {{ coq ( [[exa]] :: nil ) }}
+    | < exa ; exb > :: M :: Two  {{ com Twingleton }} {{ coq ( cons [[exb]] ([[exa]] :: nil) ) }}
+    | A1 ++ A2      :: M :: App     {{ com Exitential Environment append }} {{ coq ( [[A2]] ++ [[A1]] ) }}
+
+  Env {{ tex \Psi }} {{ coq Ψ }} :: 'Env_' ::= {{ com Environment }}
+    | bullet                ::   :: Nil    {{ com Empty environment }}
+    | Env ; ska             ::   :: Skol   {{ com Cons Skolem variable }}
+    | Env ; A               ::   :: A      {{ com Cons Existential environment }}
+    | Env ; x : S           ::   :: Var    {{ com Cons Variable }}
+    | Env ; { t : [ A ] S } ::   :: Obj    {{ com Cons Object }}
+    | Env ; { t :       S } :: S :: ObjNoA {{ com Cons Object }} {{ coq Env_Obj [[Env]] [[t]] (nil:A) [[S]] }}
+    | Env ; { t           } :: M :: ObjNoS {{ com Cons Object }} {{ coq Env_Obj [[Env]] [[t]] (nil:A) (S_T T_Unit) }}
+    | Env1 + Env2           :: M :: App    {{ com Environment append }} {{ coq (Env_app [[Env1]] [[Env2]]) }}
+    | [ T / exa ] Env       :: M :: TSubst {{ com Existential variable substitution }}
+                                           {{ coq ( subst_exvar_in_Env [[T]] [[exa]] [[Env]] ) }}
+
+  E :: 'E_' ::= {{ coq-equality }} {{ coq list (τ * τ) }}
+    | bullet            ::   :: Nil   {{ com Empty equaltities }}
+                                      {{ coq nil }}
+    | T1 sim T2 ; E     ::   :: Cons  {{ com Cons Equality }}
+                                      {{ coq ( ([[T1]],[[T2]]) :: [[E]] ) }}
+    | < T1 sim T2 >     :: S :: One   {{ com Singleton }}
+                                      {{ coq ( ([[T1]],[[T2]]) :: nil ) }}
+    | [ T / exa ] E     :: M :: Subst {{ com Existential variable substitution }}
+                                      {{ coq ( subst_exvar_in_E [[T]] [[exa]] [[E]] ) }}
+
+    % | Sub Eqs               :: M :: Subst'    {{ com Substitution' }}
+    %                                           {{ coq ( Sub_app_Eqs [[Eqs]] [[Sub]] ) }}
+    % | ( T1 sim T2 ) ; Eqs :: M :: Paren     {{ com Parenthesis }}
+    %                                           {{ coq ( ([[T1]],[[T2]]) :: [[Eqs]] ) }}
+
+    % | < A >              :: S :: ASingleton {{ com Singleton A }} {{ coq ( Env_A   Env_Empty [[A]]           ) }}
+    % | < x : Sch >        :: S :: XSingleton {{ com Singleton X }} {{ coq ( Env_Var Env_Empty [[x]]   [[Sch]] ) }}
+    % | < { Obj } >        :: S :: OSingleton {{ com Singleton X }} {{ coq ( Env_Obj Env_Empty [[Obj]]         ) }}
+    % | ( Env )            :: S :: Paren      {{ com Parenthesis }} {{ icho [[Env]]  }}
+    % | Env1 + Env2        :: M :: Append     {{ com Environment append }} {{ coq (Env_app [[Env1]] [[Env2]]) }}
+    % | [ Ty / exa ] Env   :: M :: TySubst    {{ com Substitution }} {{ coq ( subst_exvar_Env [[Ty]] [[exa]] [[Env]] ) }}
+    % | Sub Env            :: M :: Subst      {{ com Substitution }} {{ coq ( Sub_app_Env [[Env]] [[Sub]] ) }}
+
+  % Obj {{ tex O }} :: 'Obj_' ::= {{ com Objects }}
+  %   | [ A ] Sch      ::   :: Sch      {{ com Scheme }}
+  %   | t : [ A ] Sch  ::   :: SchWT    {{ com Scheme with t }}
+  %   | t              ::   :: Term     {{ com Term }}
+  %   | Sch            :: M :: SchNoA   {{ com Scheme without A }}
+  %                                     {{ coq ( Obj_Sch nil [[Sch]] ) }}
+  %   | t : Sch        :: M :: SchWTNoA {{ com Scheme with t without A }}
+  %                                     {{ coq ( Obj_SchWT [[t]] nil [[Sch]] ) }}
+
+terminals :: 'terminals_' ::=
+  | \            ::  :: lambda             {{ tex \lambda }}
+  | \\           ::  :: Lambda             {{ tex \Lambda }}
+  | -->          ::  :: red                {{ tex \longrightarrow }}
+  | -->*         ::  :: redstar            {{ tex \longrightarrow^* }}
+  | ->           ::  :: funarr             {{ tex \to }}
+  | ~>           ::  :: instarr            {{ tex \leadsto }}
+  | bullet       ::  :: bullet             {{ tex \bullet }}
+  | let          ::  :: let                {{ tex \textbf{let} }}
+  | inlet        ::  :: in                 {{ tex \textbf{in} }}
+  | unit         ::  :: teUnit             {{ tex \texttt{unit} }}
+  | Unit         ::  :: tyUnit             {{ tex \texttt{Unit} }}
+  | forall       ::  :: forall             {{ tex \forall }}
+  % | Forall       ::  :: Forall             {{ tex \forall }}
+  | .            ::  :: point
+  | |-           ::  :: turnstyle          {{ tex \vdash }}
+  % | |=           ::  :: turnstyle_doub     {{ tex \models }}
+  % | |-ty         ::  :: turnstyle_ty       {{ tex \vdash_{\widehat{\texttt{ty} } } }}
+  % | |-dty        ::  :: turnstyle_dty      {{ tex \vdash_\texttt{ty} }}
+  % | |-           ::  :: vdash              {{ tex \vdash }}
+  % | ||-          ::  :: Vdash              {{ tex \Vdash }}
+  % | ||-          ::  :: Vdash_mono         {{ tex \Vdash_\texttt{poly} }}
+  % | ||-mono      ::  :: Vdash_mono         {{ tex \Vdash_\texttt{poly} }}
+  % | ||-poly      ::  :: Vdash_poly         {{ tex \Vdash_\texttt{poly} }}
+  | -|           ::  :: rev_turnstyle      {{ tex \dashv }}
+  % | -||          ::  :: rev_turnstyle_doub {{ tex \VdashR }}
+  | sim          ::  :: sim                {{ tex \sim }}
+  | <=           ::  :: leq                {{ tex \leq }}
+  | <            ::  :: langle             {{ tex \langle }}
+  | >            ::  :: rangle             {{ tex \rangle }}
+  % | embedin      ::  :: embedin            {{ tex \hookrightarrow }}
+  % | dot          ::  :: composition        {{ tex \circ }}
+  | ++           ::  :: listappend         {{ tex \doubleplus  }}
+
+formula :: formula_ ::=
+  | judgement :: :: judgement
+
+%unordered pair membership
+  | ( T1 sim T2 ) equiv ( T3 sim T4 ) :: :: unordered_pair_lookup
+    {{ tex ( [[T1]] , [[T2]] ) \equiv ( [[T3]], [[T4]] ) }}
+    {{ coq ( ([[T1]] = [[T3]] /\ [[T2]] = [[T4]]) \/ ([[T1]] = [[T4]] /\ [[T2]] = [[T3]]) ) }}
+
+
+% algorithmic membership
+%   | skA elem Env :: :: skvar_elem_Env
+%     {{ tex [[skA]] \in [[Env]] }}
+%     {{ coq ([[skA]] `in` (Env_skvars [[Env]]) ) }}
+% %
+  | exa elem Env :: :: exvar_elem_Env
+    {{ tex [[exa]] \in [[Env]] }}
+    {{ coq ([[exa]] `in` (Env_exvars [[Env]]) ) }}
+  | exa fresh Env :: :: evar_fresh_Env
+    {{ tex [[exa]] \# [[Env]] }}
+    {{ coq ([[exa]] `in` (Env_Obj_exvars [[Env]]) -> False ) }}
+% %
+  | x : S elem Env :: :: binding_elem_Env
+    {{ tex [[x]] : [[S]] \in [[Env]] }}
+    {{ coq (In ([[x]],[[S]]) (Env_bindings [[Env]]) ) }}
+% %
+  | exa notin fv( T ) :: :: exa_notin_fv
+    {{ tex [[exa]] \not\in fv_{ \widehat{\alpha} }([[T]]) }}
+    {{ coq ([[exa]] `notin` (free_exvars_in_T [[T]]) ) }}
+% % embed
+%   | DSch embedin Sch         ::   :: Embed
+%     {{ coq ( [[Sch]] = emb_Sch [[DSch]] ) }}
+
+% generalisation
+  % | genDSch DSch2 DA = DSch1 :: :: genDSch
+  %   {{ tex \mathsf{gen}([[DSch2]], [[DA]])  = [[DSch1]] }}
+  %   {{ coq (generalize_DSch [[DSch2]] [[DA]] = [[DSch1]]) }}
+  % | genDSch dt2 DSch2 DA = dt1 DSch1 :: :: genDScht
+  %   {{ tex \mathsf{gen}([[dt2]], [[DSch2]], [[DA]])  = ([[dt1]], [[DSch1]]) }}
+  %   {{ coq False }}
+  % | genSch Sch2 A = Sch1 :: :: genSch
+  %   {{ tex \mathsf{gen([[Sch2]], [[A]]) } = [[Sch1]] }}
+  %   {{ coq (generalize_Sch [[Sch2]] [[A]] AtomSetImpl.empty = [[Sch1]]) }}
+  | genScht t1 S1 A = t2 S2 :: :: genScht
+    {{ tex \mathsf{gen([[t1]], [[S1]], [[A]]) } = ([[t2]], [[S2]]) }}
+    {{ coq False }}
+
+  | Envin |- Ein -->* Envout |- Eout :: :: Unification_Refl_Trans_Clos
+    {{ tex [[Envin]] [[|-]] [[Ein]] [[-->*]] [[Envout]] [[|-]] [[Eout]] }}
+    {{ coq False }}
+
+% x/tx and ea/tea
+%   | dtx = x                   ::   :: dtxx
+%     {{ coq ( [[dtx]] = [[x]] ) }}
+%     {{ tex \vspace{-1em} }}
+  | tx = x                   ::   :: txx
+    {{ coq ( [[tx]] = [[x]] ) }}
+    {{ tex \vspace{-1em} }}
+%   | tea = exa               ::   :: teaea
+%     {{ coq ( [[tea]] = [[exa]] ) }}
+%     {{ tex \vspace{-1em} }}
+
+% nolc
+  | nolc Env :: :: nolcEnv
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc T   :: :: nolcT
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc t   :: :: nolct
+    {{ coq True }} {{ tex \vspace{-1em} }}
+
+embed
+{{ tex \newpage }}
+
+embed
+{{ coq
+(* Axiom Env_bindings : *)
+}}
+
+defns
+AlgorithmicSystem :: '' ::=
+
+  defn Envin |- e : [ A ] T ~> t -| Envout
+    :: :: Inf :: 'Inf'
+    {{ com Type Inference }}
+    by
+
+      tx = x [[:EQ]]
+      x : S elem Env [[:IN]]
+      Env |- tx : S <= t : [A] T [[:INST]]
+      ------------------------  :: Var
+      Env |- x : [A] T ~> t -| Env
+
+
+      nolc Env
+      ----------------------------------  :: Unit
+      Env |- unit : [bullet] Unit ~> unit -| Env
+
+
+      tx = x [[:EQ]]
+      exa fresh Envin [[:FR]]
+      Envin; <exa>; x : exa |- e : [A2] T2 ~> t -| Envout; A1; x : T1 [[:INF]]
+      -----------------------------------------------------------  :: Abs
+      Envin |- \x.e : [A1 ++ A2] T1 -> T2 ~> \ (tx : T1) . t -| Envout
+
+
+      exa fresh Env2; (A1' ++ A2) [[:FR]]
+      Envin |- e1 : [A1] T ~> t1 -| Env1 [[:INFe1]]
+      Env1; {t1 : [A1] T} |- e2 : [A2] T1 ~> t2 -| Env2; {t1' : [A1'] T'} [[:INFe2]]
+      Env2; ((A1' ++ A2); exa); {t1' t2 : exa} |- T' sim T1 -> exa -| Envout; Aout; {t1'' t2' : T2} [[:UNI]]
+      -----------------------------------------------------------------------------------------------  :: App
+      Envin |- e1 e2 : [Aout] T2 ~> t1'' t2' -| Envout
+
+
+      Envin |- e1 : [A] T ~> t1 -| Env [[:POL]]
+      genScht t T A = t' S
+      Env ; x : S ; {t1} |- e2 : [A2]T2 ~> t2 -| Envout; x : S'; {t1'} [[:INF]]
+      --------------------------------------------------------------  :: Let
+      Envin |- let x = e1 inlet e2 : [A2] T2 ~> let (tx : S') = t1' inlet t2 -| Envout
+
+
+  defn Env |- t1 : S <= t2 : [ A ] T
+    :: :: Inst :: 'Inst'
+    {{ com Polymorhpic Type Instantiation }}
+    by
+
+      nolc Env
+      nolc t
+      nolc T
+      ------------------------  :: Mono
+      Env |- t : T <= t : [bullet] T
+
+
+      exa fresh Env [[:FR]]
+      Env; <exa> |- t1 [exa] : [exa/ska] S <= t2 : [A] T [[:INST]]
+      --------------------------------------  :: Poly
+      Env |- t1 : forall ska . S <= t2 : [<exa> ++ A] T
+
+  defn Env1 |- T1 sim T2 -| Env2
+    :: :: U :: 'U'
+    {{ com Unification Algorithm }}
+    by
+
+      Envin |- <T1 sim T2> -->* Envout |- bullet
+      --------------------------------------  :: U
+      Envin |- T1 sim T2 -| Envout
+
+
+  defn Env1 |- E1 --> Env2 |- E2
+    :: :: Uss :: 'Uss'
+    {{ com Unification Algorithm (Single-step) }} {{ tex \begin{array}{l} [[Env1]] [[|-]] [[E1]] [[-->]]  \\ [[Env2]] [[|-]] [[E2]] \end{array} }}
+    by
+
+      nolc Env
+      ----------------------------------------  :: Unit
+      Env |- Unit sim Unit; E --> Env |- E
+
+
+      nolc Env
+      --------------------------------------  :: Ex
+      Env |- exa sim exa; E --> Env |- E
+
+
+      nolc Env
+      nolc T1
+      nolc T2
+      nolc T3
+      nolc T4
+      ----------------------------------------------------------------------------------  :: Arr
+      Env |- (T1 -> T2) sim (T3 -> T4); E --> Env |- T1 sim T3; T2 sim T4; E
+
+
+      exa notin fv(T3 -> T4)
+      <exa1; exa2> # Env1; (A1; exa ++ A2) + Env2 [[:FR]]
+      (exa sim (T3 -> T4)) equiv (T1 sim T2)
+      ----------------------------------------------------------------------------------------  :: Split
+      Env1; (A1; exa ++ A2) + Env2 |- T1 sim T2; E --> Env1; (A1; exa1; exa2 ++ A2) + [exa1 -> exa2/exa] Env2 |- (exa1 -> exa2) sim (T3 -> T4); [exa1 -> exa2/exa] E
+
+
+      nolc Env2
+      exa elem Env1; A1
+      (exa sim exb) equiv (T1 sim T2)
+      -------------------------------------------------------------  :: SubEx
+      Env1; (A1; exb ++ A2) + Env2 |- T1 sim T2; E --> Env1; (A1 ++ A2) + [exa/exb] Env2 |- [exa/exb] E
+
+
+      nolc Env1
+      nolc Env2
+      (Unit sim exa) equiv (T1 sim T2)
+      ----------------------------------------------------------------  :: SubUnit
+      Env1; (A1; exa ++ A2) + Env2 |- T1 sim T2; E --> Env1; (A1 ++ A2) + [Unit/exa] Env2 |- [Unit/exa] E
+
+defns
+AFreshNess :: '' ::=
+    defn A # Env
+      :: :: FrA :: 'FrA'
+      {{ com A freshness }}
+      by
+
+      nolc Env
+      ------------  :: Nil
+      bullet # Env
+
+
+      A # Env [[:FRA]]
+      exa fresh Env; A [[:FR]]
+      ----------------  :: Cons
+      A; exa # Env

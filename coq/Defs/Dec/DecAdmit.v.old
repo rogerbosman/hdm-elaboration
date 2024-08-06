@@ -1,0 +1,11 @@
+Require Import Preamble.
+
+Require Export Defs.Dec.Notation.
+
+Require Import Defs.ERels.
+
+Axiom Dec_weaken : forall ψ2 ψ1 e τ t,
+      ψ1 ⊢d e ▸ τ ⤳ t
+    -> ψ1 ⊆ψα ψ2
+    -> ψ1 =ψx ψ2
+    -> ψ2 ⊢d e ▸ τ ⤳ t.

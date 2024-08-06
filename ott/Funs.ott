@@ -1,0 +1,31 @@
+grammar
+  n :: 'n_' ::=
+   | 0       :: :: Zero
+   | S n     :: :: Succ
+
+  A {{ tex A }} :: 'A_' ::=  {{ com Existential environment }} {{ coq list skvar }}
+    | bullet        :: M :: Nil    {{ com Empty A }} {{ coq nil }}
+    | A ; ska       :: M :: Cons   {{ com Cons A }}  {{ coq ( cons [[ska]] [[A]] ) }}
+    | ( A )         :: M :: Paren  {{ com Parenthesis }} {{ icho [[A]]  }}
+    | < ska >       :: M :: One    {{ com Singleton }} {{ coq ( [[ska]] :: nil ) }}
+    | < ska ; skb > :: M :: Two    {{ com Twingleton }} {{ coq ( cons [[skb]] ([[ska]] :: nil) ) }}
+
+funs Add ::=
+  fun A1 $$$$ A2 :: A :: addA
+    by
+      A1 $$$$ A2 === A1
+
+
+defns
+WellFormedness :: '' ::=
+
+  defn |- A
+    :: :: Wf :: 'Wf'
+    {{ com Type Well-formedness }}
+    by
+
+
+      |- A1
+      |- A2
+      ------------  :: Id
+      |- A1 $$$$ A2

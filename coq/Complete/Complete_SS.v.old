@@ -1,0 +1,140 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+
+(* Require Import Defs.Dec. *)
+Notation  "ψ ⊢d e ▸ τ ⤳ t" := (Dec ψ e τ t) (at level 70, format "ψ  ⊢d  e  ▸  τ  ⤳  t" ) : type_scope.
+
+Require Import Defs.E.
+Require Import Defs.EInst.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+(* Require Import Defs.Freevars. *)
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+(* Require Import Defs.Inst. *)
+Require Import Defs.Lc.
+Require Import Defs.List.
+(* Require Import Defs.NoDup. *)
+(* Require Import Defs.Subst. *)
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.SubSump.
+
+(* Require Import Defs.WfE. *)
+(* Require Import Defs.WfSTt. *)
+
+Require Import LibHyps.LibHyps.
+
+
+Theorem Dec_weaken_obj : forall ψ e τ t t' a σ,
+    ψ ⊢d e ▸ τ ⤳ t
+  -> ψ ::o ⦇t' ▸ ⟨a⟩ σ⦈ ⊢d e ▸ τ ⤳ t.
+Admitted.
+
+Axiom Env_Rel : E -> E -> Prop.
+Notation "A ≦ B" := (Env_Rel A B) (at level 75, format "A  ≦  B").
+
+Axiom Env_Rel_conso : forall ψ1 ψ2 t1 t2 a1 a2 σ1 σ2,
+    ψ1 ≦ ψ2
+  <-> ψ1 ::o ⦇t1 ▸ ⟨a1⟩ σ1⦈ ≦ ψ2 ::o ⦇t2 ▸ ⟨a2⟩ σ2⦈.
+
+Axiom Env_Rel_consa : forall ψ1 ψ2 a1 a2,
+    ψ1 ≦ ψ2
+  <-> ψ1 ::a a1 ≦ ψ2 ::a a2.
+
+Axiom Env_Rel_consx : forall ψ1 ψ2 σ1 σ2 x,
+    ψ1 ≦ ψ2
+  /\ SubSump' ψ2 (t__Var_f x) σ1 (t__Var_f x) σ2
+  <-> ψ1 ::x x :- σ1 ≦ ψ2 ::x x :- σ2.
+
+#[local] Instance Env_Rel_trans : Transitive Env_Rel. Admitted.
+
+Theorem Dec_weaken_Env_Rel : forall ψ1 ψ2 e τ t,
+    ψ1 ⊢d e ▸ τ ⤳ t
+  -> ψ2 ≦ ψ1
+  -> ψ2 ⊢d e ▸ τ ⤳ t.
+Admitted.
+
+
+Theorem Inf_complete_open : forall e ψ__dec τ__dec t__dec,
+    ψ__dec ⊢d e ▸ τ__dec ⤳ t__dec
+  -> forall L ψ__in,
+    L ⊢e' ψ__in ⤳ ψ__dec
+  -> exists ψ__out a τ t ψ__dec' t__dec' τ__dec',
+      ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+    /\ L ⊢e' ψ__out ::o ⦇t ▸ ⟨a⟩ S__T τ⦈ ⤳ ψ__dec' ::o ⦇t__dec' ▸ ⟨[]⟩ S__T τ__dec'⦈
+    /\ ψ__dec' ::o ⦇t__dec' ▸ ⟨[]⟩ S__T τ__dec'⦈ ≦ ψ__dec ::o ⦇t__dec ▸ ⟨[]⟩ S__T τ__dec⦈.
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv DEC INST; inverts DEC.
+  - admit.
+  - admit.
+  - admit.
+  - admit.
+  - rename τ1 into τ__dec1. rename t1 into t__dec1. rename τ__dec into τ__dec2. rename t2 into t__dec2.
+    rename INST into INST__in. rename IHLC into IH__e1. rename H0 into IH__e2. clear LC H.
+    specializes IH__e1 (ψ__dec ::a a) L (ψ__in ::a []). specializes IH__e1. applys_eq INST__in. admit.
+    destruct IH__e1 as [ψ1' [a1 [τ1 [t1 [?ψ__dec [?t__dec1' [?τ__dec1 [INF1 [INST1 SUB]]]]]]]]]. clear INST__in.
+    assert (ADM: exists ψ1, ψ1' = ψ1 ::a []). admit. destruct ADM as [ψ1 EQ]. subst ψ1'.
+    inv_EInst'. simpl+ in *. rename θ2 into θ__ψ1. rename θ3 into θ__a1.
+    (**)
+    forwards [x NIL__x]: atom_fresh L0 .
+    specializes IH__e2
+      (* (ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a ::o ⦇close_Tm_wrt_A t__dec1 a ▸ ⟨[]⟩ S__T T__Unit⦈) *)
+      (* (ψ__dec1 ::x x :- close_Sc_wrt_A (S__T ⟦θ__a1 ++ θ__ψ1 ▹ τ1⟧) a__dec ::o ⦇close_Tm_wrt_A ⟦θ__a1 ++ θ__ψ1 ▹ t1⟧ a__dec ▸ ⟨[]⟩ S__T T__Unit⦈) *)
+      (ψ__dec1 ::x x :- ⟦θ__ψ1 ▹ close_Sc_wrt_A (S__T τ1) a1⟧ ::o ⦇⟦θ__ψ1 ▹ close_Tm_wrt_A t1 a1⟧ ▸ ⟨[]⟩ S__T T__Unit⦈)
+      (ψ1 ::x x :- close_Sc_wrt_A (S__T τ1) a1 ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+      apply Dec_weaken_obj. eapply Dec_weaken_Env_Rel. applys DEC2 x. fsetdec.
+      apply Env_Rel_conso in SUB. apply Env_Rel_consa in SUB.
+      apply Env_Rel_consx. split. assumption. (** Important SubSump' admit *) admit.
+    specializes IH__e2.
+      exists. applys_eq EInst__O. 2:applys_eq EInst__S. 2:applys EINST0. 3:auto. fequals. fequals. simpl+. reflexivity. simpl+. reflexivity. simpl+. crush. auto.
+
+    destruct IH__e2 as [ψ__out' [a2 [τ2 [t2 [?ψ__dec [?t__dec2 [?τ__dec2 [INF2 [INST2 ?SUB]]]]]]]]].
+    assert (ADM: exists ψ__out σ__out t1', ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t1' ▸ ⟨[]⟩ S__T T__Unit⦈). admit.
+      destruct ADM as [ψ__out [σ__oout [t1' EQ]]]. subst ψ__out'.
+    clear EINST0 AINST. inv_EInst'.
+
+onAllHyps move_up_types.
+
+    exists. splits.
+    + econstructor. applys_eq INF1. admit. intros y NIL__y. asserts_rewrite (y = x) in *. admit.
+      asserts_rewrite (ψ1 ::a [] = ψ1). admit. applys_eq INF2.
+      rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. reflexivity.
+    + rewrite <- subst_tvar_Tm_spec. subst_notin'. 2:admit. exists. applys_eq EInst__O. eassumption. auto.
+
+      simpl+ in AINST. applys_eq AINST. admit.
+
+    + apply Env_Rel_conso.
+      apply Env_Rel_conso in SUB. apply Env_Rel_consa in SUB.
+      etransitivity. 2:eassumption.
+      apply Env_Rel_conso in SUB0. apply Env_Rel_conso in SUB0. apply Env_Rel_consx in SUB0.
+      jauto.
+
+(*** Direct try *)
+Axiom Inst__create : forall x σ ψ t__dec τ__dec,
+    SubSump ψ (t__Var_f x) σ t__dec τ__dec
+  -> exists t a τ,
+      Inst (t__Var_f x) σ t a τ (E_A_skvars ψ)
+    /\ SubSump ψ (close_Tm_wrt_A t a) (close_Sc_wrt_A (S__T τ) a) t__dec τ__dec.
+
+Theorem Inf_complete_open : forall e ψ__in τ__dec t__dec,
+    ψ__in ⊢d e ▸ τ__dec ⤳ t__dec
+  -> exists ψ__out a τ t,
+      ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+    /\ SubSump ψ__in (close_Tm_wrt_A t a) (close_Sc_wrt_A (S__T τ) a) t__dec τ__dec.
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv DEC; inverts DEC.
+  - (* forwards [t [a [τ [INS SS']]]]: Inst__create SS. *)
+    apply Inst__create in SS. destruct SS as [t [a [τ [INS SS]]]].
+    exists. splits.
+    + econstructor. eassumption. eassumption.
+    + eassumption.
+  - exists. splits. crush. crush.
+  - rename t1 into t1__dec. rename t2 into t2__dec.
+    specializes IHLC1 DEC1. destruct IHLC1 as [ψ1 [a1 [τ [t1 [INF1 SS1]]]]].
+Abort.

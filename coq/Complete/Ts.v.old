@@ -1,0 +1,39 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+
+Require Import Defs.List.
+Require Import Defs.Subst.
+Require Import Defs.WfSTt.
+
+(*** Ts *)
+Definition Ts := list T.
+Ltac ind_Ts Ts := induction Ts as [|?τ Ts].
+Definition apply_Ts_right : Tm -> Ts -> Tm := fold_right (fun (τ:T) (t:Tm) => t__TApp t τ).
+Definition apply_Ts_left : Tm -> Ts -> Tm := fun t τs => fold_left (fun (t:Tm) (τ:T) => t__TApp t τ) τs t.
+
+Definition Ts_wf (ψ:E) (τs:Ts) := forall τ, In τ τs -> ψ ⊢wfτ τ.
+
+Lemma apply_Ts_left_cons : forall t τ τs,
+    apply_Ts_left t (τ :: τs) = apply_Ts_left (t__TApp t τ) τs.
+Proof. intros. norm. unfold apply_Ts_left. rewrite fold_left_app. simpl+. reflexivity. Qed.
+#[export] Hint Rewrite apply_Ts_left_cons : left.
+
+Definition subst_skvar_Ts (τ:T) (α:skvar) : Ts -> Ts := map (subst_skvar_T τ α).
+#[export] Instance substable_skvar_Ts : substable Ts T skvar := { subst := subst_skvar_Ts }.
+#[export] Hint Unfold subst substable_skvar_Ts subst_skvar_Ts : subst_skvar_Ts.
+Ltac unfold_subst_skvar_Ts := autounfold with subst_skvar_Ts.
+
+Fact subst_skvar_Ts_length : forall τs α τ,
+    length ({τ ≔ α}τs) = length τs.
+Proof. intros. unfold_subst_skvar_Ts. crush. Qed.
+#[export] Hint Rewrite subst_skvar_Ts_length : core.
+
+Lemma subst_skvar_Tm_apply_Ts_left : forall τs τ α t,
+    {τ ≔ α}apply_Ts_left t τs = apply_Ts_left ({τ ≔ α}t) ({τ ≔ α}τs).
+Proof. intro τs. induction τs as [|τ' τs]; intros. crush. autorewrite with left. rewrite IHτs. crush. Qed.
+
+Lemma apply_Ts_app : forall τs1 τs2 t,
+    apply_Ts_left t (τs1 ++ τs2) = apply_Ts_left (apply_Ts_left t τs1) τs2.
+Proof. induction τs1; crush. Qed.
+#[export] Hint Rewrite apply_Ts_app : core.

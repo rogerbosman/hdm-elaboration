@@ -1,0 +1,251 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+
+(* Require Import Defs.Dec. *)
+Notation  "ψ ⊢d e ▸ τ ⤳ t" := (Dec ψ e τ t) (at level 70, format "ψ  ⊢d  e  ▸  τ  ⤳  t" ) : type_scope.
+
+Require Import Defs.E.
+Require Import Defs.EInst.
+(* Require Import Defs.ERels. *)
+Require Import Defs.FrA.
+(* Require Import Defs.Freevars. *)
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+(* Require Import Defs.Inst. *)
+(* Require Import Defs.Lc. *)
+Require Import Defs.List.
+(* Require Import Defs.NoDup. *)
+Require Import Defs.Subst.
+Require Import Defs.Sub.
+(* Require Import Defs.Subx. *)
+(* Require Import Defs.SubSump. *)
+
+(* Require Import Defs.WfE. *)
+(* Require Import Defs.WfSTt. *)
+
+
+(* Require Import Defs.SubSump_ctx. *)
+Require Import Semantics.EquivRel.
+
+Require Import LibHyps.LibHyps.
+
+Lemma SubSumpTm_SubSumpTm' : forall ψ t1 σ t2 τ,
+    SubSumpTm  ψ t1 σ t2 τ
+  <-> SubSumpTm' ψ t1 σ t2 (S__T τ).
+Proof. split; intros. eauto. inverts H. auto. Qed.
+
+Lemma SubSumpTm_translike1 : forall σ ψ t1 t2 τ θ,
+    SubSumpTm ψ t1 σ t2 τ
+  -> SubSumpTm ψ t1 σ t2 ⟦θ ▹ τ⟧.
+Proof.
+  intro σ. forall_ind σ; introv SS; inverts SS.
+
+
+
+Lemma SubSUmpTm'_translike : forall ψ x σ1 σ2 t τ t__in t__SS,
+    SubSumpTm' ψ (t__Var_f x) σ1 t (S__T τ)
+  -> SubSumpTm' ψ t__in σ2 t__SS σ1
+  -> SubSumpTm' ψ t__in σ2 ({t__SS ≔__x x}t) (S__T τ).
+Proof.
+
+
+
+Lemma Dec_strengthen_E : forall σ2 σ1 x ψ e τ t t__SS,
+    ψ ::x x :- σ1 ⊢d e ▸ τ ⤳ t
+  -> SubSumpTm' ψ (t__Var_f x) σ2 t__SS σ1
+  -> ψ ::x x :- σ2 ⊢d e ▸ τ ⤳ { t__SS ≔__x x } t.
+Proof.
+  introv DEC SST'. dependent induction DEC.
+  - rename t0 into t. rename x0 into y. destruct (y == x).
+    + subst. simpl+ in IN. if_taut. symmetry in IN. inverts IN.
+      econstructor. simpl+. if_taut. reflexivity. apply SubSumpTm_SubSumpTm'. apply SubSumpTm_SubSumpTm' in SS.
+
+    + econstructor. simpl+ in *. if_taut. eassumption. admit.
+
+
+
+Lemma Dec_weaken_obj : forall t__obj σ__obj a__obj ψ e τ t,
+    ψ ⊢d e ▸ τ ⤳ t
+  -> ψ ::o ⦇t__obj ▸ ⟨a__obj⟩ σ__obj⦈ ⊢d e ▸ τ ⤳ t.
+Admitted.
+
+Lemma EquivRel_trans : forall t1 t2 t3 ψ σ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t2 ≈ t3 ▸ σ
+  -> ψ ⊢t≈ t1 ≈ t3 ▸ σ.
+Admitted.
+
+Lemma EquivRel_conso : forall t1 t2 ψ σ t__obj a__obj σ__obj,
+    ψ ::o ⦇t__obj ▸ ⟨a__obj⟩ σ__obj⦈ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t1 ≈ t2 ▸ σ.
+Admitted.
+
+Lemma subst_tvar_Tm_subst_skvar_Tm :
+forall t1 t2 T1 β1 tx1,
+  β1 ∉ fsk t2 ->
+  subst__x t2 tx1 (subst T1 β1 t1) = subst T1 β1 (subst__x t2 tx1 t1).
+Proof. Admitted.
+
+Lemma Sub_app_t_subst_tvar_t : forall (θ:Sub) (t__in t:Tm) (x:tvar),
+    fv__α(t__in) ∐ dom_Sub θ
+  -> {t__in ≔__x x}⟦θ ▹ t⟧ = ⟦θ ▹ {t__in ≔__x x} t⟧.
+Proof.
+  introv (* NICD *) DISJ.  ind_Sub θ. crush. dist. rewrite <- IHθ.
+  - rewrite subst_tvar_Tm_subst_skvar_Tm.
+    + fequals.
+    + simpl+ in DISJ. clear - DISJ. fsetdec+.
+  - simpl+ in DISJ. disj_sub.
+Qed.
+
+Lemma subst_tvar_Tm_subst_skvar_Tm_destr : forall t t__sub τ α x,
+    {({τ ≔ α}t__sub) ≔__x x}({τ ≔ α}t) = {τ ≔ α}({t__sub ≔__x x}t).
+Proof. introv. induction t0; crush. Qed.
+
+Lemma Sub_app_t_subst_tvar_t_destr : forall (θ:Sub) (t__in t:Tm) (x:tvar),
+    {⟦θ ▹ t__in⟧ ≔__x x}⟦θ ▹ t⟧ = ⟦θ ▹ {t__in ≔__x x} t⟧.
+Proof.
+  introv. ind_Sub θ; simpl+. crush. rewrite <- IHθ.
+  apply subst_tvar_Tm_subst_skvar_Tm_destr.
+Qed.
+
+Lemma EquivRel_subst : forall ψ t1 t2 τ τ' x t__in1 t__in2,
+    ψ ::x x :- S__T τ  ⊢t≈ t1 ≈ t2 ▸ S__T τ'
+  -> ψ ⊢t≈ t__in1 ≈ t__in2 ▸ S__T τ
+  -> ψ ⊢t≈ {t__in1 ≔__x x} t1 ≈ {t__in2 ≔__x x} t2 ▸ S__T τ.
+Admitted.
+
+Theorem Inf_complete_open : forall e ψ__dec τ__dec t__dec,
+    ψ__dec ⊢d e ▸ τ__dec ⤳ t__dec
+  -> forall L ψ__in,
+    L ⊢e' ψ__in ⤳ ψ__dec
+  -> exists ψ__out a τ t t__dec',
+      ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+    /\ L ⊢e' ψ__out ::o ⦇t ▸ ⟨a⟩ S__T τ⦈ ⤳ ψ__dec ::o ⦇t__dec' ▸ ⟨[]⟩ S__T τ__dec⦈
+    /\ ψ__dec ⊢t≈ t__dec ≈ t__dec' ▸ (S__T τ__dec).
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv DEC INST; inverts DEC.
+  - admit.
+  - admit.
+  - admit.
+  - admit.
+  - rename τ1 into τ__dec1. rename t1 into t__dec1. rename τ__dec into τ__dec2. rename t2 into t__dec2.
+    rename INST into INST__in. rename IHLC into IH__e1. rename H0 into IH__e2. clear LC H.
+    destruct INST__in as [?θ INST__in].
+    (**)
+    specializes IH__e1 L (ψ__in ::a []). specializes IH__e1. exists. econstructor. eassumption. admit. admit.
+    destruct IH__e1 as [ψ1' [a1 [τ1 [t1 [t__dec1' [INF1 [INST1 EQ1]]]]]]].
+    assert (ADM: exists ψ1, ψ1' = ψ1 ::a []). admit. destruct ADM as [ψ1 EQ]. subst ψ1'.
+    inv_EInst'. simpl+ in *. onAllHyps move_up_types.
+    (**)
+    forwards [x NIL__x]: atom_fresh L0.
+    specializes DEC2 x. specializes DEC2. fsetdec.
+    (**)
+    assert (SS__A: exists t__SS, SubSumpCtx' ψ__dec ⟦θ4 ▹ (close_Sc_wrt_A (S__T τ1) a1)⟧ (close_Sc_wrt_A (S__T ⟦θ3 ++ θ4 ▹ τ1⟧) a) t__SS). admit.
+      destruct SS__A as [t__SS SS__A].
+    eapply Dec_strengthen_E in DEC2. 2:eassumption.
+    (**)
+    eapply (Dec_weaken_obj) in DEC2.
+    (**)
+    specializes IH__e2 DEC2. specializes IH__e2 (ψ1 ::x x :- close_Sc_wrt_A (S__T τ1) a1 ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+      specializes IH__e2.
+      exists. eapply EInst__S in EINST0. eapply EInst__O in EINST0. applys_eq EINST0. simpl+. fequals.
+        2:auto. instantiate (1 := []). auto.
+    destruct IH__e2 as [ψ__out' [a2 [τ2 [t2 [t__huh [INF2 [INST2 EQ2]]]]]]].
+      apply EquivRel_conso in EQ2.
+    assert (ADM: exists ψ__out σ__out t__out, ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t__out ▸ ⟨[]⟩ S__T T__Unit⦈). admit.
+      destruct ADM as [ψ__out [σ__out [t__out EQ]]]. subst ψ__out'.
+    clear AINST EINST0. inv_EInst'. simpl+ in *. onAllHyps move_up_types.
+    (**)
+    exists. splits.
+    + econstructor. applys_eq INF1. admit. intros y _.
+      asserts_rewrite (y = x) in *. admit. clear y.
+      applys_eq INF2.
+      * admit.
+      * rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. reflexivity.
+    + exists. eapply EInst__O in EINST. applys_eq EINST. fequals. 2:auto.
+      simpl+. reflexivity. applys_eq AINST. simpl+. admit.
+    + rewrite <- subst_tvar_Tm_spec. simpl+.
+      (**)
+      rewrite <- Sub_app_t_subst_tvar_t_destr.
+      applys_eq EquivRel_subst.
+      apply
+
+
+
+      eapply EquivRel_trans. 2:eassumption.
+
+
+
+
+
+
+
+
+
+
+    specializes IH__e1 (ψ__dec ::a a) L (ψ__in ::a []). specializes IH__e1. exists. applys_eq INST__in. admit.
+    destruct IH__e1 as [ψ1' [a1 [τ1 [t1 [?ψ__dec [?t__dec1' [?τ__dec1 [INF1 [INST1 SUB]]]]]]]]]. clear INST__in.
+    assert (ADM: exists ψ1, ψ1' = ψ1 ::a []). admit. destruct ADM as [ψ1 EQ]. subst ψ1'.
+    inv_EInst'. simpl+ in *. rename θ2 into θ__ψ1. rename θ3 into θ__a1.
+    (**)
+    forwards [x NIL__x]: atom_fresh L0 .
+    specializes IH__e2
+      (* (ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a ::o ⦇close_Tm_wrt_A t__dec1 a ▸ ⟨[]⟩ S__T T__Unit⦈) *)
+      (* (ψ__dec1 ::x x :- close_Sc_wrt_A (S__T ⟦θ__a1 ++ θ__ψ1 ▹ τ1⟧) a__dec ::o ⦇close_Tm_wrt_A ⟦θ__a1 ++ θ__ψ1 ▹ t1⟧ a__dec ▸ ⟨[]⟩ S__T T__Unit⦈) *)
+      (ψ__dec1 ::x x :- ⟦θ__ψ1 ▹ close_Sc_wrt_A (S__T τ1) a1⟧ ::o ⦇⟦θ__ψ1 ▹ close_Tm_wrt_A t1 a1⟧ ▸ ⟨[]⟩ S__T T__Unit⦈)
+      (ψ1 ::x x :- close_Sc_wrt_A (S__T τ1) a1 ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+      apply Dec_weaken_obj. eapply Dec_weaken_Env_Rel. applys DEC2 x. fsetdec.
+      apply Env_Rel_conso in SUB. apply Env_Rel_consa in SUB.
+      apply Env_Rel_consx. split. assumption. (** Important SubSump' admit *) admit.
+    specializes IH__e2.
+      exists. applys_eq EInst__O. 2:applys_eq EInst__S. 2:applys EINST0. 3:auto. fequals. fequals. simpl+. reflexivity. simpl+. reflexivity. simpl+. crush. auto.
+
+    destruct IH__e2 as [ψ__out' [a2 [τ2 [t2 [?ψ__dec [?t__dec2 [?τ__dec2 [INF2 [INST2 ?SUB]]]]]]]]].
+    assert (ADM: exists ψ__out σ__out t1', ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t1' ▸ ⟨[]⟩ S__T T__Unit⦈). admit.
+      destruct ADM as [ψ__out [σ__oout [t1' EQ]]]. subst ψ__out'.
+    clear EINST0 AINST. inv_EInst'.
+
+onAllHyps move_up_types.
+
+    exists. splits.
+    + econstructor. applys_eq INF1. admit. intros y NIL__y. asserts_rewrite (y = x) in *. admit.
+      asserts_rewrite (ψ1 ::a [] = ψ1). admit. applys_eq INF2.
+      rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. reflexivity.
+    + rewrite <- subst_tvar_Tm_spec. subst_notin'. 2:admit. exists. applys_eq EInst__O. eassumption. auto.
+
+      simpl+ in AINST. applys_eq AINST. admit.
+
+    + apply Env_Rel_conso.
+      apply Env_Rel_conso in SUB. apply Env_Rel_consa in SUB.
+      etransitivity. 2:eassumption.
+      apply Env_Rel_conso in SUB0. apply Env_Rel_conso in SUB0. apply Env_Rel_consx in SUB0.
+      jauto.
+
+(*** Direct try *)
+Axiom Inst__create : forall x σ ψ t__dec τ__dec,
+    SubSump ψ (t__Var_f x) σ t__dec τ__dec
+  -> exists t a τ,
+      Inst (t__Var_f x) σ t a τ (E_A_skvars ψ)
+    /\ SubSump ψ (close_Tm_wrt_A t a) (close_Sc_wrt_A (S__T τ) a) t__dec τ__dec.
+
+Theorem Inf_complete_open : forall e ψ__in τ__dec t__dec,
+    ψ__in ⊢d e ▸ τ__dec ⤳ t__dec
+  -> exists ψ__out a τ t,
+      ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+    /\ SubSump ψ__in (close_Tm_wrt_A t a) (close_Sc_wrt_A (S__T τ) a) t__dec τ__dec.
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv DEC; inverts DEC.
+  - (* forwards [t [a [τ [INS SS']]]]: Inst__create SS. *)
+    apply Inst__create in SS. destruct SS as [t [a [τ [INS SS]]]].
+    exists. splits.
+    + econstructor. eassumption. eassumption.
+    + eassumption.
+  - exists. splits. crush. crush.
+  - rename t1 into t1__dec. rename t2 into t2__dec.
+    specializes IHLC1 DEC1. destruct IHLC1 as [ψ1 [a1 [τ [t1 [INF1 SS1]]]]].
+Abort.

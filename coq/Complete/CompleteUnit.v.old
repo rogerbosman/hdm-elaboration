@@ -1,0 +1,43 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.EInst.
+Require Import Defs.List.
+Require Import Defs.TmTy.
+
+Require Import Complete.PrincipalTyping.
+
+(*** Lemmas *)
+(** general *)
+Lemma EInst_cons_nil : forall ψ1 ψ2 a,
+     ψ1 ⤳' ψ2
+  -> FrA a (E_skvars ψ2)
+  -> ψ1 ::a [] ⤳' ψ2 ::a a.
+Proof. introv [θ INST] FR. exists. econstructor. eassumption. assumption. crush. Qed.
+
+(** Unit case *)
+Lemma complete_unit_SubSump : forall a ψ,
+    NoDup a
+  -> SubSumpTm' ψ t__Unit (S__T T__Unit) (Λ a ⬪ t__Unit) (∀ a ⬪ S__T T__Unit).
+Proof.
+  intro a. ind_a a. crush.
+  introv ND. simpl+. applys SST'__R (varl a).
+  intros β NIL__β. inverts ND.
+  rewrite <- subst_skvar_Tm_spec. rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:crush. 2:eauto. 2:simpl+; fsetdec.
+  rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:crush. 2:eauto. 2:simpl+; fsetdec.
+  simpl+. eauto.
+Qed.
+
+Lemma complete_unit_TmTy: forall (a : A) (ψ : E),
+    NoDup a
+  -> ψ ⊢t Λ a ⬪ t__Unit ▸ (∀ a ⬪ S__T T__Unit).
+Proof.
+  intro a. ind_a a. crush.
+  introv ND. simpl+. applys TmTy__TAbs (varl a).
+  intros β NIL__β. inverts ND.
+  rewrite <- subst_skvar_Tm_spec. rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:crush. 2:eauto. 2:simpl+; fsetdec.
+  rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:crush. 2:eauto. 2:simpl+; fsetdec.
+  simpl+. eauto.
+Qed.

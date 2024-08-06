@@ -1,0 +1,988 @@
+embed {{ coq
+(*Require Import TLC.LibTactics.*)
+Require Import LibTactics.LibTactics.
+Require Import Coq.micromega.Lia.
+Require Export Metalib.LibLNgen.
+Require Import Coq.Program.Equality.
+Require Import Metalib.MetatheoryAtom.
+Require Import Cpdtlib.CpdtTactics.
+
+Require Import Defs.HdmRewrites.
+
+From Coq Require Import Init.Logic.
+
+#[export] Hint Constructors Compare : core.
+Set Warnings "-notation-overridden".
+
+Open Scope program_scope.
+}}
+
+
+indexvar index, in, out ::= {{ coq nat }}
+         
+metavar   dttermvar
+        , dtx {{ tex x }}
+        , dty {{ tex y }} ::= {{ com declarative term term variable }}
+                              {{ coq-equality apply eq_dec. }}
+                              {{ lex alphanum }}
+                              {{ tex \mathit{[[ttermvar]]} }}
+                              {{ repr-locally-nameless }}
+
+metavar   ttermvar
+        , tx {{ tex x }}
+        , ty {{ tex y }} ::= {{ com term term variable }}
+                             {{ coq-equality apply eq_dec. }}
+                             {{ lex alphanum }}
+                             {{ tex \mathit{[[ttermvar]]} }}
+                             {{ repr-locally-nameless }}
+
+metavar termvar, x, y ::= {{ com term variable }}
+                          {{ coq-equality apply eq_dec. }} 
+                          {{ lex alphanum }}
+                          {{ tex \mathit{[[termvar]]} }}
+                          {{ repr-locally-nameless }}
+  
+metavar   dskvar
+        , dskA {{ tex a }}
+        , dskB {{ tex b }}
+        ::= {{ com skollem variable }}
+            {{ coq-equality apply eq_dec. }} 
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   dtskvar
+        , dtskA {{ tex \widehat{ \text{a} } }}
+        , dtskB {{ tex \widehat{ \text{b} } }}
+        ::= {{ com declartive term skollem variable }} {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   tskvar
+        , tskA {{ tex \widehat{ \text{a} } }}
+        , tskB {{ tex \widehat{ \text{b} } }}
+        ::= {{ com term skollem variable }} {{ coq-equality apply eq_dec. }}
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+
+metavar   skvar
+        , skA {{ tex \widehat{ \text{a} } }}
+        , skB {{ tex \widehat{ \text{b} } }}
+        ::= {{ com skollem variable }} {{ coq-equality apply eq_dec. }} 
+            {{ coq-equality }}
+            {{ lex alphanum}}
+            {{ repr-locally-nameless }}
+ 
+metavar   texvar
+        , texA {{ tex \widehat{\alpha} }}
+        , texB {{ tex \widehat{\beta} }}
+        ::= {{ com term existential variable }}
+            {{ coq atom }}
+            {{ coq-equality apply eq_dec. }}
+            {{ lex alphanum }}
+
+metavar   exvar
+        , exA {{ tex \widehat{\alpha} }}
+        , exB {{ tex \widehat{\beta} }}
+        ::= {{ com existential variable }}
+            {{ coq atom }}
+            {{ coq-equality apply eq_dec. }} 
+            {{ lex alphanum }}
+
+grammar
+  e :: 'e_' ::= {{ com Terms }} {{ coq-equality }}
+    | x                    ::   :: Var                     {{ com Term variable }}
+    | unit                 ::   :: Unit                    {{ com Term unit }}
+    | e1 e2                ::   :: App                     {{ com Application }}
+    | \ x . e              ::   :: Lam (+ bind x in e  +)  {{ com Abstraction }}
+    | let x = e1 inlet e2  ::   :: Let (+ bind x in e2 +)  {{ com Let binding }}
+    | ( e )                :: S :: Paren                   {{ com Parenthesis }} {{ icho [[e]] }}
+
+  t :: 't_' ::= {{ com Elaborated terms }} {{ coq-equality }} {{ tex \widehat{[[t]]} }}
+    | tx                             ::   :: TmVar                      {{ com Term variable }}
+    | tskA                           ::   :: TyVar                      {{ com Term variable }}
+    | texA                           ::   :: ExVar                      {{ com Term variable }}
+    | unit                           ::   :: Unit                       {{ com Term unit }}
+    | t1 t2                          ::   :: App                        {{ com Application }}
+    | \ ( tx : Sch ) . t             ::   :: TmLam (+ bind tx in t   +) {{ com Term Abstraction }}
+    | \\ tskA . t                    ::   :: TyLam (+ bind tskA in t +) {{ com Type Abstraction }}
+    | let ( tx : Sch ) = t1 inlet t2 ::   :: Let   (+ bind tx in t2  +) {{ com Let binding }}
+    | ( t )                          :: S :: Paren                      {{ com Parenthesis }} {{ icho [[t]] }}
+
+  dt {{ tex t }} :: 'dt_' ::= {{ com Elaborated terms }} {{ coq-equality }}
+    | dtx                                ::   :: TmVar                        {{ com Term variable }}
+    | dtskA                              ::   :: TyVar                        {{ com Term variable }}
+    | unit                               ::   :: Unit                         {{ com Term unit }}
+    | dt1 dt2                            ::   :: App                          {{ com Application }}
+    | \ ( dtx : DSch ) . dt              ::   :: TmLam (+ bind dtx in dt   +) {{ com Term Abstraction }}
+    | \\ dtskA . dt                      ::   :: TyLam (+ bind dtskA in dt +) {{ com Type Abstraction }}
+    | let ( dtx : DSch ) = dt1 inlet dt2 ::   :: Let   (+ bind dtx in dt2  +) {{ com Let binding }}
+    | ( dt )                             :: S :: Paren                        {{ com Parenthesis }} {{ icho [[t]] }}
+
+  DTy {{ tex \tau }} :: 'DT_' ::= {{ com Dec Types }} {{ coq-equality }}
+    | dskA         ::   :: SkVar                 {{ com Skolem variable }} 
+    | Unit         ::   :: Unit                  {{ com Unit type }}
+    | DTy1 -> DTy2 ::   :: Fun                   {{ com Function type }}
+    | ( DTy )      :: S :: Paren                 {{ com Parehtiesis }} {{ icho [[DTy]]  }} 
+
+  DSch {{ tex \sigma }} :: 'DS_' ::= {{ com Dec Type schemes }} {{ coq-equality }}
+    | DTy                 ::   :: Mono                            {{ com Monotype }}
+    | forall dskA . DSch  ::   :: Forall  (+ bind dskA in DSch +) {{ com Forall }}
+    | [ DTy / dskA ] DSch :: M :: SubstSk                         {{ com Skolemm substitution }}
+                                                                  {{ coq ( subst_dskvar_DSch [[DTy]] [[dskA]] [[DSch]] ) }}
+
+  Ty {{ tex T }} :: 'T_' ::= {{ com Types }} {{ coq-equality }}
+    | skA          ::   :: SkVar                 {{ com Skolem variable }} 
+    | exA          ::   :: ExVar                 {{ com Exitential variable }} 
+    | Unit         ::   :: Unit                  {{ com Unit type }}
+    | Ty1 -> Ty2   ::   :: Fun                   {{ com Function type }}
+    | ( Ty )       :: S :: Paren                 {{ com Parehtiesis }} {{ icho [[Ty]]  }} 
+
+  Sch {{ tex S }} :: 'S_' ::= {{ com Type schemes }} {{ coq-equality }}
+    | Ty               ::   :: Mono                         {{ com Monotype }}
+    | forall skA . Sch ::   :: Forall (+ bind skA in Sch +) {{ com Forall }}
+    | [ Ty / exA ] Sch :: M :: SubstEx                      {{ com Existential substitution }}
+                                                            {{ coq ( subst_exvar_Sch [[Ty]] [[exA]] [[Sch]] ) }}
+    | [ Ty / skA ] Sch :: M :: SubstSk                      {{ com Skolemm substitution }}
+                                                            {{ coq ( subst_skvar_Sch [[Ty]] [[skA]] [[Sch]] ) }}
+    | DSub Sch         :: M :: SubInst                      {{ com Instatiation substitution }}
+                                                            {{ coq ( DSub_app [[Sch]] [[DSub]] ) }}
+
+substitutions
+  single e   x    :: subst_tm
+
+  single t   tx    :: subst_t_tm
+  single t   tskA  :: subst_t_skvar
+
+  single DTy  dskA :: subst_dskvar
+
+  single Ty  exA  :: subst_exvar
+  single Ty  skA  :: subst_skvar
+
+freevars
+  e    x    :: free_xs
+
+  t    tx    :: free_t_xs
+  t    tskA  :: free_t_xs
+
+  DTy  dskA :: free_dskvars
+
+  Ty   skA  :: free_skvars
+  Ty   exA  :: free_exvars
+
+grammar 
+  DA {{ tex \overline{a} }} :: 'DA_' ::= {{ com Decl Skolem variable list }} {{ coq list dskvar }}
+    | bullet     :: M :: Empty     {{ com Empty environment }}
+                                   {{ coq nil }}
+    | DA ; dskA  :: M :: Cons      {{ com Cons existential }}
+                                   {{ coq ( cons [[dskA]] [[DA]] ) }}
+    | ( DA )     :: M :: Paren     {{ com Parenthesis }} {{ icho [[DA]]  }} 
+    | < dskA >   :: M :: Singleton {{ com Singleton  }}
+                                   {{ coq ( [[dskA]] :: nil ) }}
+    | DA1 ++ DA2 :: M :: Append    {{ com Append }} {{ coq ( [[DA2]] ++ [[DA1]] ) }}
+
+  DObj {{ tex o }} :: 'DObj_' ::= {{ com Objects }}
+    | [ DA ] DSch ::   :: DSch   {{ com Scheme }}
+
+  DEnv {{ tex \Gamma }} :: 'DEnv_' ::= {{ com Dec Environment }}
+    | bullet            ::   :: Empty        {{ com Empty environment }}
+    | DEnv ; dskA       ::   :: DSkol        {{ com Cons Sk }}
+    | DEnv ; x : DSch   ::   :: DVar         {{ com Cons Variable }}
+    | DEnv ; { DObj }   ::   :: DObj         {{ com Cons Object }}
+    | DEnv ; DA         :: M :: DA           {{ com Cons DA }}
+                                             {{ coq ( DEnv_DA [[DEnv]] [[DA]] ) }} 
+    | ( DEnv )          :: M :: Paren        {{ com Parenthesis }}
+                                             {{ icho [[DEnv]]  }} 
+    | < dskA >          :: M :: SkSingleton  {{ com Singleton Sk }}
+                                             {{ coq ( DEnv_DSkol DEnv_Empty [[dskA]] ) }}
+    | < DA >            :: M :: DASingleton  {{ com Singleton DA }}
+                                             {{ coq ( DEnv_DA DEnv_Empty [[DA]] ) }} 
+    | < x : DSch >      :: M :: VarSingleton {{ com Singleton Var }}
+                                             {{ coq ( DEnv_DVar DEnv_Empty [[x]] [[DSch]] ) }}
+    | < { DObj } >      :: M :: ObjSingleton {{ com Singleton Obj }}
+                                             {{ coq ( DEnv_DObj DEnv_Empty [[DObj]] ) }}
+    | DEnv1 + DEnv2     :: M :: Append       {{ com Environment append }}
+                                             {{ coq (DEnv_app [[DEnv1]] [[DEnv2]]) }}
+
+grammar
+  Obj {{ tex O }} :: 'Obj_' ::= {{ com Objects }}
+    | [ A ] Sch      ::   :: Sch      {{ com Scheme }}
+    | t : [ A ] Sch  ::   :: SchWT    {{ com Scheme with t }}
+    | t              ::   :: Term     {{ com Term }}
+    | Sch            :: M :: SchNoA   {{ com Scheme without A }}
+                                      {{ coq ( Obj_Sch nil [[Sch]] ) }}
+    | t : Sch        :: M :: SchWTNoA {{ com Scheme with t without A }}
+                                      {{ coq ( Obj_SchWT [[t]] nil [[Sch]] ) }}
+
+  A {{ tex A }} :: 'A_' ::=  {{ com Existential environment }} {{ coq list exvar }}
+    | bullet        :: M :: Empty      {{ com Empty environment }}
+                                       {{ coq nil }}
+    | A ; exA       :: M :: Cons       {{ com Cons existential }}
+                                       {{ coq ( cons [[exA]] [[A]] ) }}
+    | ( A )         :: M :: Paren      {{ com Parenthesis }}
+                                       {{ icho [[A]]  }}
+    | < exA >       :: M :: Singleton  {{ com Singleton }}
+                                       {{ coq ( [[exA]] :: nil ) }}
+    | < exA ; exB > :: M :: Twingleton {{ com Singleton }}
+                                       {{ coq ( cons [[exB]] ([[exA]] :: nil) ) }}
+    | A1 ++ A2      :: M :: Append     {{ com Exitential Environment append }} {{ coq ( [[A2]] ++ [[A1]] ) }}
+
+  Env {{ tex \Psi }} :: 'Env_' ::= {{ com Environment }}
+    | bullet             ::   :: Empty      {{ com Empty environment }}
+    | Env ; skA          ::   :: Skol       {{ com Cons Skolem variable }}
+    | Env ; A            ::   :: A          {{ com Cons Existential environment }}
+    | Env ; x : Sch      ::   :: Var        {{ com Cons Variable }}
+    | Env ; { Obj }      ::   :: Obj        {{ com Cons Object }}
+    | < A >              :: S :: ASingleton {{ com Singleton A }}
+                                            {{ coq ( Env_A   Env_Empty [[A]]           ) }}
+    | < x : Sch >        :: S :: XSingleton {{ com Singleton X }}
+                                            {{ coq ( Env_Var Env_Empty [[x]]   [[Sch]] ) }}
+    | < { Obj } >        :: S :: OSingleton {{ com Singleton X }}
+                                            {{ coq ( Env_Obj Env_Empty [[Obj]]         ) }}
+    | ( Env )            :: S :: Paren      {{ com Parenthesis }}
+                                            {{ icho [[Env]]  }}
+    | Env1 + Env2        :: M :: Append     {{ com Environment append }}
+                                            {{ coq (Env_app [[Env1]] [[Env2]]) }}
+    | [ Ty / exA ] Env   :: M :: TySubst    {{ com Substitution }}
+                                            {{ coq ( subst_exvar_Env [[Ty]] [[exA]] [[Env]] ) }}
+    | Sub Env            :: M :: Subst      {{ com Substitution }}
+                                            {{ coq ( Sub_app_Env [[Env]] [[Sub]] ) }}
+
+  Eqs {{ tex E }} :: 'Eqs_' ::= {{ coq-equality }} {{ coq list (Ty * Ty) }}
+    | bullet                ::   :: Empty     {{ com Empty equaltities }}
+                                              {{ coq nil }}
+    | Ty1 sim Ty2 ; Eqs     ::   :: ConsEqs   {{ com Cons Equality }}
+                                              {{ coq ( ([[Ty1]],[[Ty2]]) :: [[Eqs]] ) }}
+    | < Ty1 sim Ty2 >       :: S :: Singleton {{ com Singleton }} {{ coq ( ([[Ty1]],[[Ty2]]) :: nil ) }}
+    | [ Ty / exA ] Eqs      :: M :: Subst     {{ com Substitution }}
+                                              {{ coq ( subst_exvar_Eqs [[Ty]] [[exA]] [[Eqs]] ) }}
+    | Sub Eqs               :: M :: Subst'    {{ com Substitution' }}
+                                              {{ coq ( Sub_app_Eqs [[Eqs]] [[Sub]] ) }}
+    | ( Ty1 sim Ty2 ) ; Eqs :: M :: Paren     {{ com Parenthesis }}
+                                              {{ coq ( ([[Ty1]],[[Ty2]]) :: [[Eqs]] ) }}
+
+  Sub {{ tex \gamma }} :: 'Sub_' ::= {{ coq-equality }} {{ coq list (exvar * Ty) }}
+    | bullet                ::   :: Empty     {{ com Empty substitution }}
+                                              {{ coq nil }}
+    | Sub dot [ Ty / exA ]  ::   :: Cons      {{ com Cons substitution }}
+                                              {{ coq ( ( [[exA]] , [[Ty]] ) :: [[Sub]] ) }}
+    | < [ Ty / exA ] >      :: M :: Singleton {{ com Singleton }} {{ tex \lbrack [[Ty]] / [[exA]] \rbrack }}
+                                              {{ coq ( ( [[exA]], [[Ty]] ) :: nil)  }}
+    | ( Sub )               :: M :: Paren     {{ com Parenthesis }}
+                                              {{ icho [[Sub]]  }}
+    | Sub1 + Sub2           :: M :: Append    {{ com Append }}
+                                              {{ coq ([[Sub2]] ++ [[Sub1]])  }}
+
+  DSub {{ tex \theta }} :: 'DSub_' ::= {{ coq-equality }} {{ coq list (exvar * DTy) }}
+    | bullet                 ::   :: Empty     {{ com Empty substitution }}
+                                               {{ coq nil }}
+    | DSub dot [ DTy / exA ] ::   :: Cons      {{ com Cons substitution }}
+                                               {{ coq ( ( [[exA]], [[DTy]] ) :: [[DSub]] ) }}
+    | ( DSub )               :: M :: Paren     {{ com Parenthesis }}
+                                               {{ icho [[DSub]]  }}
+    | DSub1 + DSub2          :: M :: Append    {{ com Append }}
+                                               {{ coq ([[DSub2]] ++ [[DSub1]])  }}
+
+terminals :: 'terminals_' ::=
+  | \            ::  :: lambda             {{ tex \lambda }}
+  | \\           ::  :: Lambda             {{ tex \Lambda }}
+  | -->          ::  :: red                {{ tex \longrightarrow }}
+  | -->*         ::  :: redstar            {{ tex \longrightarrow^* }}
+  | ->           ::  :: funarr             {{ tex \to }}
+  | ~>           ::  :: instarr            {{ tex \leadsto }}
+  | bullet       ::  :: bullet             {{ tex \bullet }}
+  | let          ::  :: let                {{ tex \textbf{let} }}
+  | inlet        ::  :: in                 {{ tex \textbf{in} }}
+  | unit         ::  :: teUnit             {{ tex \texttt{unit} }}
+  | Unit         ::  :: tyUnit             {{ tex \texttt{Unit} }}
+  | forall       ::  :: forall             {{ tex \forall }}
+  | Forall       ::  :: Forall             {{ tex \forall }}
+  | .            ::  :: point    
+  | |-           ::  :: turnstyle          {{ tex \vdash }}
+  | |=           ::  :: turnstyle_doub     {{ tex \models }}
+  | |-ty         ::  :: turnstyle_ty       {{ tex \vdash_{\widehat{\texttt{ty} } } }}
+  | |-dty        ::  :: turnstyle_dty      {{ tex \vdash_\texttt{ty} }}
+  | |-           ::  :: vdash              {{ tex \vdash }}
+  | ||-          ::  :: Vdash              {{ tex \Vdash }}
+  | ||-mono      ::  :: Vdash_mono         {{ tex \Vdash               }}
+  | ||-poly      ::  :: Vdash_poly         {{ tex \Vdash_\texttt{poly} }}
+  | -|           ::  :: rev_turnstyle      {{ tex \dashv }}
+  | -||          ::  :: rev_turnstyle_doub {{ tex \VdashR }}
+  | sim          ::  :: sim                {{ tex \sim }}
+  | <=           ::  :: leq                {{ tex \leq }}
+  | <            ::  :: langle             {{ tex \langle }}
+  | >            ::  :: rangle             {{ tex \rangle }}
+  | embedin      ::  :: embedin            {{ tex \hookrightarrow }}
+  | dot          ::  :: composition        {{ tex \circ }}
+  | ++           ::  :: listappend         {{ tex \doubleplus  }}
+
+formula :: formula_ ::=
+  | judgement :: :: judgement
+
+% generalisation
+  | genDSch DSch2 DA = DSch1 :: :: genDSch
+    {{ tex \mathsf{gen}([[DSch2]], [[DA]])  = [[DSch1]] }}
+    {{ coq (generalize_DSch [[DSch2]] [[DA]] = [[DSch1]]) }}
+  | genDSch dt2 DSch2 DA = dt1 DSch1 :: :: genDScht
+    {{ tex \mathsf{gen}([[dt2]], [[DSch2]], [[DA]])  = ([[dt1]], [[DSch1]]) }}
+    {{ coq False }}
+  | genSch Sch2 A = Sch1 :: :: genSch
+    {{ tex \mathsf{gen([[Sch2]], [[A]]) } = [[Sch1]] }}
+    {{ coq (generalize_Sch [[Sch2]] [[A]] AtomSetImpl.empty = [[Sch1]]) }}
+  | genScht t2 Sch2 A = t1 Sch1 :: :: genScht
+    {{ tex \mathsf{gen([[t2]], [[Sch2]], [[A]]) } = ([[t1]], [[Sch1]]) }}
+    {{ coq False }}
+
+% equality
+  | Sch1 = Sch2 :: :: Sch_equality
+    {{ tex [[Sch1]] = [[Sch2]] }}
+    {{ coq ([[Sch1]] = [[Sch2]]) }}
+  | Env1 = Env2 :: :: Env_equality
+    {{ tex [[Env1]] = [[Env2]] }}
+    {{ coq ([[Env1]] = [[Env2]]) }}
+
+% declarative membership
+  | dskA elem DEnv :: :: dskvar_elem_DEnv
+    {{ tex [[dskA]] \in [[DEnv]] }}
+    {{ coq ([[dskA]] `in` (DEnv_dskvars [[DEnv]]) ) }}
+  | dskA notelem DEnv :: :: dskvar_notelem_DEnv
+    {{ tex [[dskA]] \not\in [[DEnv]] }}
+    {{ coq ([[dskA]] `notin` (DEnv_dskvars [[DEnv]]) ) }}
+%
+  | x : DSch elem DEnv :: :: termvar_elem_DEnv
+    {{ tex [[x]] : [[DSch]] \not\in [[DEnv]] }}
+    {{ coq (DSchPSI.In ([[x]],[[DSch]]) (DEnv_bindings [[DEnv]]) ) }}
+
+% algorithmic membership
+  | skA elem Env :: :: skvar_elem_Env
+    {{ tex [[skA]] \in [[Env]] }}
+    {{ coq ([[skA]] `in` (free_skvars_in_E [[Env]]) ) }}
+%
+  | exA elem Env :: :: exvar_elem_Env
+    {{ tex [[exA]] \in [[Env]] }}
+    {{ coq ([[exA]] `in` (Env_exvars [[Env]]) ) }}
+  | exA fresh Env :: :: exvar_fresh_Env
+    {{ tex [[exA]] \# [[Env]] }}
+    {{ coq ([[exA]] `in` (Env_Obj_exvars [[Env]]) -> False ) }}
+%
+  | x : Sch elem Env :: :: termvar_elem_Env
+    {{ tex [[x]] : [[Sch]] \in [[Env]] }}
+    {{ coq (In ([[x]],[[Sch]]) (Env_bindings [[Env]]) ) }}
+%
+  | exA notin fv( Ty ) :: :: exa_notin_fv
+    {{ tex [[exA]] \not\in fv_{ \widehat{\alpha} }([[Ty]]) }}
+    {{ coq ([[exA]] `notin` (free_exvars_Ty [[Ty]]) ) }}
+% embed
+  | DSch embedin Sch         ::   :: Embed
+    {{ coq ( [[Sch]] = emb_Sch [[DSch]] ) }}
+
+% x/tx and exA/texA
+  | dtx = x                   ::   :: dtxx
+    {{ coq ( [[dtx]] = [[x]] ) }}
+    {{ tex \vspace{-1em} }}
+  | tx = x                   ::   :: txx
+    {{ coq ( [[tx]] = [[x]] ) }}
+    {{ tex \vspace{-1em} }}
+  | texA = exA               ::   :: texAexA
+    {{ coq ( [[texA]] = [[exA]] ) }}
+    {{ tex \vspace{-1em} }}
+
+% nolc
+  | nolc DSch                 ::   :: nolcDSch
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc Sch                  ::   :: nolcSch
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc DObj                 ::   :: nolcDObj
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc Obj                  ::   :: nolcObj
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc DEnv                 ::   :: nolcDEnv
+    {{ coq True }} {{ tex \vspace{-1em} }}
+  | nolc Env                  ::   :: nolcEnv
+    {{ coq True }} {{ tex \vspace{-1em} }}
+
+embed
+{{ tex \newpage }}
+
+
+% defns DecHelpers :: '' ::=
+
+%   defn DA # DEnv
+%     :: :: DFrA :: 'DFrA'
+%     {{ com DA freshness }}
+%     by
+
+%       nolc DEnv
+%       ------------  :: Nil
+%       bullet # DEnv
+
+
+%       DA # DEnv [[:DFRA]]
+%       dskA notelem DEnv; DA [[:DFR]]
+%       ----------------  :: Cons
+%       DA; dskA # DEnv
+
+defns DecTyping :: '' ::=
+
+  defn DEnv ||-mono e : DTy ~> dt
+    :: :: TmMon :: 'Tm'
+    {{ com Term Typing }}
+    by
+
+      dtx = x
+      x : DSch elem DEnv [[:IN]]
+      DEnv ||- dtx : DSch <= dt : DTy [[:SS]]
+      --------------------  :: Var
+      DEnv ||-mono x : DTy ~> unit
+
+
+      nolc DEnv
+      ------------------------  :: Unit
+      DEnv ||-mono unit : Unit ~> unit
+
+
+      DEnv |-dty DTy1 [[:WFDTY]]
+      DEnv; x : DTy1 ||-mono e : DTy2 ~> dt [[:MON]]
+      -----------------------------------  :: Abs
+      DEnv ||-mono \ x . e : DTy1 -> DTy2 ~> \ (dtx : DTy1). dt
+
+
+      DEnv ||-mono e1 : DTy1 -> DTy2 ~> dt1 [[:MONe1]]
+      DEnv ||-mono e2 : DTy1 ~> dt2 [[:MONe2]]
+      ------------------------------  :: App
+      DEnv ||-mono e1 e2 : DTy2 ~> dt1 dt2
+
+      DEnv; DA ||-mono e1 : DTy1 ~> dt1 [[:MON1]]
+      genDSch dt1 DTy1 DA = dt1' DSch [[:GEN]]
+      DEnv; x : DSch ||-mono e2 : DTy ~> dt2 [[:MON2]]
+      ------------------------------------------  :: Let
+      DEnv ||-mono let x = e1 inlet e2 : DTy ~> let (dtx : DSch) = dt1' inlet dt2
+
+
+    % | let ( dtx : DSch ) = dt1 inlet dt2 ::   :: Let   (+ bind dtx in dt2  +) {{ com Let binding }}
+
+  defn DEnv |-dty DSch
+    :: :: WfDTy :: 'WfDTy'
+    {{ com Dec Type Well-formedness }}
+    by
+
+      dskA elem DEnv [[:IN]]
+      ---------------  :: Sk
+      DEnv |-dty dskA
+
+
+      nolc DEnv
+      -------------  :: Unit
+      DEnv |-dty Unit
+
+
+      DEnv |-dty DTy1 [[:WFDTY1]]
+      DEnv |-dty DTy2 [[:WFDTY2]]
+      -------------------  :: Arr
+      DEnv |-dty DTy1 -> DTy2
+
+
+      DEnv; dskA |-dty DSch [[:WFDTY]]
+      -----------------------  :: Abs
+      DEnv |-dty forall dskA . DSch
+
+  defn wf ( DEnv )
+    :: :: WfDEnv :: 'WfDEnv'
+    {{ com Scoping/Typing Environment Well-formedness }}
+    {{ tex \texttt{wf}~([[DEnv]]) }}
+    by
+
+      ------------  :: Nil
+      wf( bullet )
+
+
+      wf( DEnv ) [[:WFD]]
+      dskA notelem DEnv [[:FR]]
+      ----------------  :: Sk
+      wf( DEnv; dskA )
+
+
+      wf( DEnv ) [[:WFD]]
+      DEnv |-dty DSch [[:WFDTY]]
+      --------------------  :: Sch
+      wf( DEnv; x : DSch )
+
+
+  defn DEnv ||- dt1 : DSch1 <= dt2 : DSch2
+    :: :: SubSump :: SubSump
+    {{ com Type subsumption }}
+    by
+
+      % nolc DEnv
+      % nolc DTy
+      % ------------------  :: Mono
+      % DEnv ||- DTy <= DTy
+
+      % DEnv |-dty DTy1 [[:WFDTY]]
+      % DEnv ||- [DTy1 / dskA] DSch <= DTy2 [[:SS]]
+      % -----------------------------------  :: Inst
+      % DEnv ||- forall dskA . DSch <= DTy2
+
+% defns DecTyping :: '' ::=
+
+%   defn DEnv ||-mono e : DTy
+%     :: :: TmMon :: 'Tm'
+%     {{ com Term Typing }}
+%     by
+
+%       x : DSch elem DEnv [[:IN]]
+%       DEnv ||- DSch <= DTy [[:SS]]
+%       --------------------  :: Var
+%       DEnv ||-mono x : DTy
+
+
+%       nolc DEnv
+%       ------------------------  :: Unit
+%       DEnv ||-mono unit : Unit
+
+
+%       DEnv |-dty DTy1 [[:WFDTY]]
+%       DEnv; x : DTy1 ||-mono e : DTy2 [[:MON]]
+%       -----------------------------------  :: Abs
+%       DEnv ||-mono \ x . e : DTy1 -> DTy2
+
+
+%       DEnv ||-mono e1 : DTy1 -> DTy2 [[:MONe1]]
+%       DEnv ||-mono e2 : DTy1 [[:MONe2]]
+%       ------------------------------  :: App
+%       DEnv ||-mono e1 e2 : DTy2
+
+%       DEnv; DA ||-mono e1 : DTy1 [[:MON1]]
+%       genDSch DTy1 DA = DSch [[:GEN]]
+%       DEnv; x : DSch ||-mono e2 : DTy [[:MON2]]
+%       ------------------------------------------  :: Let
+%       DEnv ||-mono let x = e1 inlet e2 : DTy
+
+%   defn DEnv |-dty DSch
+%     :: :: WfDTy :: 'WfDTy'
+%     {{ com Dec Type Well-formedness }}
+%     by
+
+%       dskA elem DEnv [[:IN]]
+%       ---------------  :: Sk
+%       DEnv |-dty dskA
+
+
+%       nolc DEnv
+%       -------------  :: Unit
+%       DEnv |-dty Unit
+
+
+%       DEnv |-dty DTy1 [[:WFDTY1]]
+%       DEnv |-dty DTy2 [[:WFDTY2]]
+%       -------------------  :: Arr
+%       DEnv |-dty DTy1 -> DTy2
+
+
+%       DEnv; dskA |-dty DSch [[:WFDTY]]
+%       -----------------------  :: Abs
+%       DEnv |-dty forall dskA . DSch
+
+%   defn wf ( DEnv )
+%     :: :: WfDEnv :: 'WfDEnv'
+%     {{ com Scoping/Typing Environment Well-formedness }}
+%     {{ tex \texttt{wf}~([[DEnv]]) }}
+%     by
+
+%       ------------  :: Nil
+%       wf( bullet )
+
+
+%       % DA # DEnv [[:NIN]]
+%       % wf( DEnv ) [[:WFDTY]]
+%       % ---------------  :: DA
+%       % wf( DEnv; DA )
+
+%       wf( DEnv ) [[:WFD]]
+%       dskA notelem DEnv [[:FR]]
+%       ----------------  :: Sk
+%       wf( DEnv; dskA )
+
+
+%       wf( DEnv ) [[:WFD]]
+%       DEnv |-dty DSch [[:WFDTY]]
+%       --------------------  :: Sch
+%       wf( DEnv; x : DSch )
+
+
+%   defn DEnv ||- DSch1 <= DSch2
+%     :: :: SubSump :: SubSump
+%     {{ com Type subsumption }}
+%     by
+
+%       nolc DEnv
+%       nolc DTy
+%       ------------------  :: Mono
+%       DEnv ||- DTy <= DTy
+
+%       DEnv |-dty DTy1 [[:WFDTY]]
+%       DEnv ||- [DTy1 / dskA] DSch <= DTy2 [[:SS]]
+%       -----------------------------------  :: Inst
+%       DEnv ||- forall dskA . DSch <= DTy2
+
+defns
+AFreshNess :: '' ::=
+    defn A # Env
+      :: :: FrA :: 'FrA'
+      {{ com A freshness }}
+      by
+
+      nolc Env
+      ------------  :: Nil
+      bullet # Env
+
+
+      A # Env [[:FRA]]
+      exA fresh Env; A [[:FR]]
+      ----------------  :: Cons
+      A; exA # Env
+
+defns
+AlgorithmicSystem :: '' ::=
+
+  defn Envin |- e : [ A ] Ty ~> t -| Envout
+    :: :: Inf :: 'Inf'
+    {{ com Type Inference }}
+    by
+
+      tx = x [[:EQ]]
+      x : Sch elem Env [[:IN]]
+      Env |- tx : Sch <= t : [A] Ty [[:INST]]
+      ------------------------  :: Var
+      Env |- x : [A] Ty ~> t -| Env
+
+
+      nolc Env
+      ----------------------------------  :: Unit
+      Env |- unit : [bullet] Unit ~> unit -| Env
+
+
+      tx = x [[:EQ]]
+      exA fresh Envin [[:FR]]
+      Envin; <exA>; x : exA |- e : [A2]Ty2 ~> t -| Envout; A1; x : Ty1 [[:INF]]
+      -----------------------------------------------------------  :: Abs
+      Envin |- \x.e : [A1 ++ A2] Ty1 -> Ty2 ~> \ (tx : Ty1) . t -| Envout
+
+
+      exB fresh Env2; (A1' ++ A2) [[:FR]]
+      Envin |- e1 : [A1] Ty ~> t1 -| Env1 [[:INFe1]]
+      Env1; {t1 : [A1] Ty} |- e2 : [A2] Ty1 ~> t2 -| Env2; {t1' : [A1'] Ty'} [[:INFe2]]
+      Env2; A1' ++ (A2; exB); {t1' t2 : exB} |- <Ty' sim Ty1 -> exB> -| Envout; Aout; {t1'' t2' : Ty2} [[:UNI]]
+      -----------------------------------------------------------------------------------------------  :: App
+      Envin |- e1 e2 : [Aout] Ty2 ~> t1'' t2' -| Envout
+
+
+      Envin |- e1 : Sch ~> t1 -| Env [[:POL]]
+      Env ; x : Sch ; {t1} |- e2 : [A2]Ty2 ~> t2 -| Envout; x : Sch'; {t1'} [[:INF]]
+      --------------------------------------------------------------  :: Let
+      Envin |- let x = e1 inlet e2 : [A2] Ty2 ~> let (tx : Sch') = t1' inlet t2 -| Envout
+
+  defn Env1 |- e : Sch ~> t -| Env2
+    :: :: Gen :: 'Inf'
+    {{ com Generalization }}
+    by
+
+      Envin |- e : [A] Ty ~> t -| Envout [[:MON]]
+      genScht t Ty A = t' Sch
+      -----------------------------------  :: Gen
+      Envin |- e : Sch ~> t -| Envout
+
+  defn Env |- t1 : Sch <= t2 : [ A ] Ty
+    :: :: Inst :: 'Inst'
+    {{ com Polymorhpic Type Instantiation }}
+    by
+
+      nolc Env
+      nolc Ty
+      ------------------------  :: Mono
+      Env |- t : Ty <= t : [bullet] Ty
+ 
+
+      texA = exA [[:EQ]]
+      exA fresh Env [[:FR]]
+      Env; <exA> |- t1 texA : [exA/skA] Sch <= t2 : [A] Ty [[:INST]]
+      --------------------------------------  :: Poly
+      Env |- t1 : forall skA . Sch <= t2 : [<exA> ++ A] Ty
+
+
+  defn Env1 |- Eqs -| Env2
+    :: :: U :: 'U'
+    {{ com Unification Algorithm }}
+    by
+
+      Envin |- Eqs -| Envout, Sub [[:Us]]
+      ----------------------------  :: U
+      Envin |- Eqs -| Envout
+
+  % defn Envin |- Eqsin -->* Envout |- Eqsout , Sub
+  %   :: :: Us :: 'Us'
+  %   {{ com Reflexive transitive closure of unification (right extension)  }}
+  %   by
+
+  %     --------------------  :: Refl
+  %     Env |- Eqs -->* Env |- Eqs, bullet
+
+
+
+  %     Envin |- Eqs --> Env |- Eqs', Sub1 [[:UNI]]
+  %     Sub1 Env |- Sub1 Eqs' -->* Envout |- Eqs'', Sub2 [[:USS]]
+  %     ----------------------------  :: Cons
+  %     Envin |- Eqs -->* Envout |- Eqs'', Sub1 + Sub2
+
+  defn Env1 |- Eqs1 --> Env2 |- Eqs2
+    :: :: Uss :: 'Uss'
+    {{ com Unification Algorithm (Single-step) }} {{ tex \begin{array}{l} [[Env1]] \vdash [[Eqs1]] \rightarrow \\ [[Env2]] \vdash [[Eqs2]] \end{array} }}
+    by
+
+      nolc Env
+      ----------------------------------------  :: Unit
+      Env |- Unit sim Unit; Eqs --> Env |- Eqs
+
+
+      nolc Env
+      --------------------------------------  :: ExA
+      Env |- exA sim exA; Eqs --> Env |- Eqs
+
+
+      nolc Env
+      nolc Ty1
+      nolc Ty2
+      nolc Ty3
+      nolc Ty4
+      ----------------------------------------------------------------------------------  :: DistrArr
+      Env |- (Ty1 -> Ty2) sim (Ty3 -> Ty4); Eqs --> Env |- Ty1 sim Ty3; Ty2 sim Ty4; Eqs
+
+      nolc Ty1
+      nolc Ty2
+      nolc Env2
+      exA notin fv(Ty1 -> Ty2)
+      <exA1; exA2> # Env1; (A1; exA ++ A2) + Env2 [[:FR]]
+      ----------------------------------------------------------------------------------------  :: SplitL
+      Env1; (A1; exA ++ A2) + Env2 |- exA sim (Ty1 -> Ty2); Eqs --> Env1; (A1; exA1; exA2 ++ A2) + [exA1 -> exA2/exA] Env2 |- (exA1 -> exA2 sim Ty1 -> Ty2); [exA1 -> exA2/exA] Eqs
+
+      nolc Ty1
+      nolc Ty2
+      nolc Env2
+      exA notin fv(Ty1 -> Ty2)
+      <exA1; exA2> # Env1; (A1; exA ++ A2) + Env2 [[:FR]]
+      ----------------------------------------------------------------------------------------  :: SplitR
+      Env1; (A1; exA ++ A2) + Env2 |- (Ty1 -> Ty2) sim exA; Eqs --> Env1; (A1; exA1; exA2 ++ A2) + [exA1 -> exA2/exA] Env2 |- (exA1 -> exA2 sim Ty1 -> Ty2); [exA1 -> exA2/exA] Eqs
+
+      nolc Env2
+      exA elem Env1; A1
+      -------------------------------------------------------------  :: SubExL
+      Env1; (A1; exB ++ A2) + Env2 |- exA sim exB; Eqs --> Env1; (A1 ++ A2) + [exA/exB] Env2 |- [exA/exB] Eqs
+
+      nolc Env2
+      exA elem Env1; A1
+      -------------------------------------------------------------  :: SubExR
+      Env1; (A1; exB ++ A2) + Env2 |- exB sim exA; Eqs --> Env1; (A1 ++ A2) + [exA/exB] Env2 |- [exA/exB] Eqs
+
+
+      nolc Env1
+      nolc Env2
+      ----------------------------------------------------------------  :: SubUnitAL
+      Env1; (A1; exA ++ A2) + Env2 |- Unit sim exA; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[Unit/exA]>
+
+
+      nolc Env1
+      nolc Env2
+      ----------------------------------------------------------------  :: SubUnitAR
+      Env1; (A1; exA ++ A2) + Env2 |- exA sim Unit; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[Unit/exA]>
+
+  defn Envin |- Eqsin -->* Envout |- Eqsout , Sub
+    :: :: SubUs :: 'SubUs'
+    {{ com Reflexive transitive closure of unification (right extension) with substitution  }}
+    by
+
+      --------------------  :: Refl
+      Env |- Eqs -->* Env |- Eqs, bullet
+
+
+
+      Envin |- Eqs --> Env |- Eqs', Sub1 [[:UNI]]
+      Sub1 Env |- Sub1 Eqs' -->* Envout |- Eqs'', Sub2 [[:USS]]
+      ----------------------------  :: Cons
+      Envin |- Eqs -->* Envout |- Eqs'', Sub1 + Sub2
+
+
+  defn Env1 |- Eqs1 --> Env2 |- Eqs2 , Sub
+    :: :: SubUss :: 'SubUss'
+    {{ com Unification Algorithm (Single-step) with substitution }} {{ tex \begin{array}{l} [[Env1]] \vdash [[Eqs1]] \rightarrow \\ [[Env2]] \vdash [[Eqs2]], [[Sub]] \end{array} }}
+    by
+
+      nolc Env
+      ----------------------------------------  :: Unit
+      Env |- Unit sim Unit; Eqs --> Env |- Eqs, bullet
+
+
+      nolc Env
+      --------------------------------------  :: ExA
+      Env |- exA sim exA; Eqs --> Env |- Eqs, bullet
+
+
+      nolc Env
+      nolc Ty1
+      nolc Ty2
+      nolc Ty3
+      nolc Ty4
+      ----------------------------------------------------------------------------------  :: DistrArr
+      Env |- (Ty1 -> Ty2) sim (Ty3 -> Ty4); Eqs --> Env |- Ty1 sim Ty3; Ty2 sim Ty4; Eqs, bullet
+
+      nolc Ty1
+      nolc Ty2
+      nolc Env2
+      exA notin fv(Ty1 -> Ty2)
+      <exA1; exA2> # Env1; (A1; exA ++ A2) + Env2 [[:FR]]
+      ----------------------------------------------------------------------------------------  :: SplitL
+      Env1; (A1; exA ++ A2) + Env2 |- exA sim (Ty1 -> Ty2); Eqs --> Env1; (A1; exA1; exA2 ++ A2) + Env2 |- (exA1 -> exA2 sim Ty1 -> Ty2); Eqs, < [exA1 -> exA2/exA] >
+
+      nolc Ty1
+      nolc Ty2
+      nolc Env2
+      exA notin fv(Ty1 -> Ty2)
+      <exA1; exA2> # Env1; (A1; exA ++ A2) + Env2 [[:FR]]
+      ----------------------------------------------------------------------------------------  :: SplitR
+      Env1; (A1; exA ++ A2) + Env2 |- (Ty1 -> Ty2) sim exA; Eqs --> Env1; (A1; exA1; exA2 ++ A2) + Env2 |- (Ty1 -> Ty2 sim exA1 -> exA2 ); Eqs, <[exA1 -> exA2/exA]>
+
+      nolc Env2
+      exA elem Env1; A1
+      -------------------------------------------------------------  :: SubExL
+      Env1; (A1; exB ++ A2) + Env2 |- exA sim exB; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[exA/exB]>
+
+      nolc Env2
+      exA elem Env1; A1
+      -------------------------------------------------------------  :: SubExR
+      Env1; (A1; exB ++ A2) + Env2 |- exB sim exA; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[exA/exB]>
+
+
+      nolc Env1
+      nolc Env2
+      ----------------------------------------------------------------  :: SubUnitAL
+      Env1; (A1; exA ++ A2) + Env2 |- Unit sim exA; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[Unit/exA]>
+
+
+      nolc Env1
+      nolc Env2
+      ----------------------------------------------------------------  :: SubUnitAR
+      Env1; (A1; exA ++ A2) + Env2 |- exA sim Unit; Eqs --> Env1; (A1 ++ A2) + Env2 |- Eqs, <[Unit/exA]>
+
+
+defns WFAlgorithmic :: '' ::=
+
+    defn Env |-ty Sch
+      :: :: WfTy :: 'WfTy'
+      {{ com Type Well-formedness }}
+      by
+
+      skA elem Env [[:IN]]
+      ------------  :: Sk
+      Env |-ty skA
+
+
+      exA elem Env [[:IN]]
+      ------------  :: Ex
+      Env |-ty exA
+
+
+      nolc Env
+      -------------  :: Unit
+      Env |-ty Unit
+
+
+      Env |-ty Ty1 [[:WFTYt1]]
+      Env |-ty Ty2 [[:WFTYt2]]
+      -------------------  :: Arr
+      Env |-ty Ty1 -> Ty2
+
+
+      Env; skA |-ty Sch [[:WFTY]]
+      ------------------------  :: Abs
+      Env |-ty forall skA. Sch
+
+    defn wf ( Env )
+      :: :: WfEnv :: 'WfEnv'
+      {{ com Scoping/Typing Environment Well-formedness }}
+      {{ tex \widehat{\texttt{wf} }~([[Env]]) }}
+      by
+
+
+      ---------------  :: Nil
+      wf(bullet)
+
+
+      wf(Env) [[:WF]]
+      A # Env [[:FR]]
+      ---------------  :: A
+      wf(Env; A)
+
+
+      wf(Env) [[:WF]]
+      Env |-ty Sch [[:WFTY]]
+      ----------------  :: Sch
+      wf(Env; x : Sch)
+
+
+      wf(Env) [[:WF]]
+      A # Env [[:FR]]
+      Env; A |-ty Sch [[:WFTY]]
+      -------------------  :: ObjSch
+      wf(Env; { [A] Sch })
+
+
+defns EnvironmentInstantiation :: '' ::=
+
+  defn DEnvin , DSubin |- A ~> DA , DSub
+    :: :: AInst :: 'AInst'
+    {{ com A instantiation }}
+    by
+
+
+      nolc DEnv
+      ------------------------------------- :: Nil
+      DEnv, DSub |- bullet ~> bullet, bullet
+
+
+      DEnvin, DSubin |- A ~> DA1, DSub
+      DEnvin; DA1 ++ DA2 |-dty DTy [[:WFDTY]]
+      ------------------------------------- :: Cons
+      DEnvin, DSubin |- A; exA ~> (DA1 ++ DA2), DSub dot [ DTy / exA ]
+
+  defn DEnvin , DSubin |- Env ~> DEnv , DSub
+    :: :: EInst :: 'EInst'
+    {{ com Environment instantiation }}
+    by
+
+      nolc DEnv
+      ------------------------------------- :: Nil
+      DEnv, DSub |- bullet ~> bullet, bullet
+
+      DEnvin, DSubin |- Env ~> DEnv, DSub1 [[:INST]]
+      DEnvin + DEnv, DSubin + DSub1 |- A ~> DA, DSub2 [[:INSTA]]
+      ----------------------------------------------------  :: A
+      DEnvin, DSubin |- Env; A ~> DEnv; DA, DSub1 + DSub2
+
+
+      DEnvin, DSubin |- Env ~> DEnv, DSub [[:INST]]
+      DSch embedin (DSubin + DSub) Sch [[:EMB]]
+      ----------------------------------  :: Sch
+      DEnvin, DSubin |- Env; x : Sch ~> DEnv; x : DSch, DSub
+
+
+      DEnvin, DSubin |- Env ~> DEnv, DSub [[:INST]]
+      (DEnvin + DEnv), (DSubin + DSub) |- A ~> DA, DSub' [[:INSTA]]
+      DSch embedin (DSubin + (DSub + DSub')) Sch [[:EMB]]
+      ----------------------------------  :: ObjSch
+      DEnvin, DSubin |- Env; {[A] Sch} ~> DEnv; {[DA] DSch}, DSub
+
+embed {{ coq
+(* Local Variables: *)
+(* company-coq-local-symbols: (("|=" . ?⊨) ("=|" . ?⫤) ("->>" . ?↠) ("=~" . ?≈) ("<|" . ?⟨) ("|>" . ?⟩)); *)
+(* End: *)}}

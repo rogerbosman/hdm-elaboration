@@ -1,0 +1,129 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import LibHyps.LibHyps.
+
+Require Import Defs.E.
+Require Import Defs.EInst.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+Require Import Defs.List.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.TmTy.
+
+Require Import Complete.PrincipalTyping.
+
+Require Import Semantics.FundPropAdmit.
+
+
+(*** Def *)
+Axiom R__ψ : E -> E -> Prop.
+
+Definition PrincipalTypingR (ψ:E) (e:Ex) (a__p:A) (τ__p:T) (t__p:Tm) :=
+    ψ ⊢d' e ▸ ⟨a__p⟩ τ__p ⤳ t__p
+  /\ forall ψ' a τ t,
+    R__ψ ψ ψ'
+  -> ψ' ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> exists t', SubSumpTm' ψ' (Λ a__p ⬪ t__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a ⬪ (S__T τ))
+        /\ ψ' ⊢t≈ t' ≈ (Λ a ⬪ t) ▸ (∀ a ⬪ (S__T τ)).
+
+Lemma DecA_generalize_binding : forall σ1 ψ x σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists a' τ' t',
+      ψ ::x x :- σ1 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'
+    /\ SubSumpTmEq ψ a t τ a' t' τ'.
+Admitted.
+
+
+Lemma SubSumpTm__baseabs : forall ψ t τ1 τ2,
+    SubSumpTm ψ t (S__T (T__Fun τ1 τ2)) t (T__Fun τ1 τ2).
+Proof. econstructor. Qed.
+
+(* Lemma SubSumpTm__abs : forall σ ψ t1 t2 τ1 τ2, *)
+(*     SubSumpTm ψ t1 σ t2 (T__Fun τ1 τ2). *)
+(* Proof. *)
+(*   intro *)
+
+
+(* Lemma SubSUmpTmEq : forall, *)
+(*     SubSumpTmEq ψ a (t__Lam (T__Var_f α__dec) (close_Tm_wrt_Tm x t__p)) (T__Fun (T__Var_f α__dec) τ__p2) (a3 ++ a0) (t__Lam τ0 t0) (T__Fun τ0 τ3) *)
+(*     SubSumpTmEq ψ a t τ a' t' τ' *)
+
+Lemma SubSumpTmEq__Abs : forall a2 a1 ψ τ__arg1 t1 τ1 τ__arg2 t2 τ2,
+    SubSumpTmEq ψ a1             t1              τ1  a2             t2              τ2
+  -> SubSump'    ψ                    (∀ a1 ⬪ (S__T τ__arg1))                (∀ a2 ⬪ (S__T τ__arg2))
+  -> SubSumpTmEq ψ a1 (t__Lam τ__arg1 t1) (T__Fun τ__arg1 τ1) a2 (t__Lam τ__arg2 t2) (T__Fun τ__arg2 τ2).
+Proof.
+  intro a2. induction a2 as [|α2 a2]. intro a1. induction a1 as [|α1 a1].
+  - introv EQ1 EQ2. unfold SubSumpTmEq in *. simpl+ in *. destruct EQ1 as [t2' [SS EQ1]]. inverts SS. inverts SS0.
+    inverts EQ2. inverts SS.
+    exists. splits. eauto. admit.
+  - introv EQ1 EQ2. unfold SubSumpTmEq in *. simpl+ in *. destruct EQ1 as [t2' [SS EQ1]]. inverts SS. inverts SS0.
+    inverts EQ2. inverts SS0.
+Admitted.
+
+(*** Thm *)
+Theorem Inf_complete_open : forall e ψ__dec,
+    Typable ψ__dec e
+  -> forall ψ__in,
+    ∅ ⊢e' ψ__in ⤳ ψ__dec
+  -> exists a__p τ__p t__p ψ__out a__alg τ__alg t__alg,
+      PrincipalTyping ψ__dec e a__p τ__p t__p
+    /\ ψ__in ⊢ e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg ⊣ ψ__out
+    /\ ∅ ⊢e' ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ ψ__dec ::o ⦇t__p ▸ ⟨a__p⟩ S__T τ__p⦈.
+Proof.
+  introv TYP. forwards E: Typable_lc TYP. gen ψ__dec TYP. induction E.
+  all:introv [a__typ [τ__typ [t__typ DECA]]] [θ INST]; inverts DECA.
+  (** var *)
+  - admit.
+
+  (** unit *)
+  - admit.
+
+  (** app *)
+   - admit.
+
+  (** abs *)
+  - clear H. rename H0 into IH. rename τ1 into τ__p1. rename τ2 into τ__typ2. rename t0 into t__typ.
+    rename a1 into a__p1. rename a2 into a__typ2. rename INST into INST__in.
+    (**)
+    forwards [x NIL__x]: atom_fresh L.
+    forwards [α NIL__α]: atom_fresh (L ∪ dom_Sub θ).
+    forwards [α__dec NIL__α__dec]: atom_fresh (E_skvars ψ__dec).
+    specializes DEC x. specializes DEC. fsetdec.
+    (**)
+    (* assert (exists a__typ2' τ__typ2' t__typ', (ψ__dec ::a [α__dec]) ::x x :- S__T (T__Var_f α__dec) ⊢d' open_Ex_wrt_Ex e (e__Var_f x) ▸ ⟨a__typ2⟩ τ__typ2' ⤳ open_Tm_wrt_Tm t__typ' (t__Var_f x) *)
+    (*                              /\ SubSumpTmEq (ψ__dec ::a [α__dec]) a__typ2' t__typ' τ__typ2' a__typ2 t__typ τ__typ2). *)
+    (* admit. destruct H as [a__typ2' [τ__typ2' [t__typ' [DEC' EQ1]]]]. *)
+    assert (WFT': (ψ__dec ::a [α__dec]) ⊢wfτ T__Var_f α__dec). splits. constructor. erel_fsetdec.
+    assert (FR': [α__dec] ### E_skvars ψ__dec). eapply FrA_singleton. fsetdec.
+    (**)
+    forwards IH1: IH. unfolds. exists. apply DEC'. exists. instantiate (2 := ψ__in ::a [α] ::x x :- S__T (T__Var_f α)).
+      applys_eq EInst__S. 2:applys_eq EInst__A. 2:eassumption. instantiate (1 := [(T__Var_f α__dec, α)]). simpl+. fequals. fequals.
+      dist. rewrite Sub_app_T_notindom. 2:simpl+; fsetdec. simpl+. if_taut. FrA_L_sub.
+      econstructor. auto. simpl+. eassumption.
+      destruct IH1 as [a__p2 [τ__p2 [t__p [ψ__out' [a2 [τ2 [t [PRIN [INF INST__out]]]]]]]]].
+      assert (ADM: exists ψ__out a1 τ1, ψ__out' = ψ__out ::a a1 ::x x :- S__T τ1). admit.
+      destruct ADM as [ψ__out [a1 [τ1 EQ]]]. subst.
+    (**)
+    exists (a__p2 ++ [α__dec]) (T__Fun (T__Var_f α__dec) τ__p2) (t__Lam (T__Var_f α__dec) (close_Tm_wrt_Tm x t__p)). exists ψ__out (a2 ++ a1) (T__Fun τ1 τ2) (t__Lam τ1 t).
+    splits.
+    + destruct PRIN as [DEC__p PRIN].
+      unfolds. split. econstructor. eassumption.
+      intros y NIL__y. asserts_rewrite (y = x) in *. admit. rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. crush. eassumption.
+      intros a__np τ__np t__np DEC__np. inverts DEC__np. onAllHyps move_up_types.
+      forwards [z NIL__z]: atom_fresh L0. specializes DEC0 z. specializes DEC0. fsetdec.
+      asserts_rewrite (z = x) in *. admit. unfolds.
+
+
+
+      unfolds.
+
+        (** stuck here, ψ__dec' <> ψ__dec, extend IH? *)
+Abort.

@@ -1,0 +1,131 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.List.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.SubSump.
+
+Require Import LibHyps.LibHyps.
+
+Require Import Semantics.FundPropAdmit.
+
+Require Import Complete.PrincipalTyping.
+
+Require Export Complete.ApplyA.
+Require Import Complete.Ts.
+Require Import Complete.OpenSc.
+
+(*** Lems *)
+Lemma SubSumpTmA_to : forall ψ t1 σ t2 a τ,
+    SubSumpTmA ψ t1 σ t2 a τ
+  -> exists τs, t2 = apply_Ts_left t1 τs
+        /\ open_Sc_wrt_Ts σ τs = Some τ
+        /\ length τs = foralls σ
+        /\ Ts_wf (ψ ::a a) τs.
+Proof.
+  introv SS. induction SS. exists ([]: Ts). simpl+. crush. unfolds. crush.
+  destruct IHSS as [τs [EQ__t [EQ__τ [EQ__len WF]]]]. exists (τ1 :: τs). simpl+. splits. 1,2,3:crush.
+  unfolds. intros. inverts H. eapply WfT_E_A_sk_sub. eassumption. erel_fsetdec.
+  specializes WF. eassumption. eapply WfT_E_A_sk_sub. eassumption. erel_fsetdec.
+Qed.
+
+Lemma SubSumpTm_from : forall τs ψ t1 σ τ,
+    open_Sc_wrt_Ts σ τs = Some τ
+  -> length τs = foralls σ
+  -> Ts_wf ψ τs
+  -> SubSumpTm ψ t1 σ (apply_Ts_left t1 τs) τ.
+Proof.
+  intro τs. induction τs as [|τ' τs]; introv EQ__τ EQ__len WF; (* introv FR; *) destruct σ; simpl+ in EQ__len; inverts EQ__len.
+  - simpl+ in EQ__τ. inverts EQ__τ. crush.
+  - simpl+. econstructor. applys WF τ'. crush.
+    eapply IHτs. simpl+ in EQ__τ. eassumption. simpl+. eassumption. unfolds. intros. apply WF. crush.
+Qed.
+
+Lemma Complete_SubSumpTm'_helper__SS : forall  (a__np : A) (a__p : A) (ψ : E) (t1 : Tm) (τ__p : T) (τ__np : T) (τs : Ts),
+    open_Sc_wrt_Ts (∀ a__p ⬪ S__T τ__p) τs = Some τ__np
+  -> length τs = foralls (∀ a__p ⬪ S__T τ__p)
+  -> Ts_wf (ψ ::a a__np) τs
+  -> SubSumpTm' ψ (Λ a__p ⬪ apply_A_left t1 a__p) (∀ a__p ⬪ S__T τ__p) (Λ a__np ⬪ apply_Ts_left (Λ a__p ⬪ apply_A_left t1 a__p) τs) (∀ a__np ⬪ S__T τ__np).
+Proof.
+  intro a__p. induction a__p as [|α__np a__np]; introv EQ__τ EQ__len WF.
+  - simpl+ in *. econstructor.
+    eapply SubSumpTm_from. 1,2:eassumption. admit.
+  - simpl+. applys SST'__R empty. intros α NIL__α.
+    rewrite <- subst_skvar_Tm_spec. rewrite <- subst_skvar_Sc_spec.
+    applys_eq SubSumpTm'_rename_skvar; try symmetry.
+    + instantiate (1 := ψ ::a [α__np]). simpl+. fequals. apply rename_skvar_E_notin. admit.
+    + apply subst_skvar_Tm_notin. admit.
+    + apply subst_skvar_Sc_notin. admit.
+    + eapply IHa__np. eassumption. eassumption. admit.
+Admitted.
+
+Definition PrincipalSubSumptionA (ψ:E) (t1:Tm) (σ:Sc) (t2__p:Tm) (a__p:A) (τ__p:T) :=
+    SubSumpTmA ψ t1 σ t2__p a__p τ__p
+  /\ forall t2__np a__np τ__np,
+    SubSumpTmA ψ t1 σ t2__np a__np τ__np
+  -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t2__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a__np ⬪ (S__T τ__np))
+        /\ ψ ⊢t≈ t' ≈ (Λ a__np ⬪ t2__np) ▸ (∀ a__np ⬪ (S__T τ__np)).
+
+Lemma SubSump_reversible : forall σ ψ t L,
+    exists a τ, FrA a L
+         /\ length a = foralls σ
+         /\ open_Sc_wrt_A σ a = Some τ
+         /\ SubSumpTmA ψ t σ (apply_A_left t a) a τ.
+Proof.
+  intro σ. forall_ind σ.
+  - introv. exists ([]:A). exists τ. crush.
+  - introv. forwards [α NIL__α]: atom_fresh (L ∪ E_skvars ψ).
+    specializes IHn (open_Sc_wrt_T σ__Forall (T__Var_f α)) (L ∪ {{α}}). simpl+. crush.
+      destruct IHn as [a [τ [FR [LEN [OP SS]]]]].
+    exists (α :: a). exists. splits.
+    + eapply FrA_shift'. eassumption. fsetdec.
+    + simpl+. crush.
+    + simpl+. crush.
+    + norm. applys SSTA__L (T__Var_f α). apply FrA_singleton. fsetdec.
+      unfolds. splits. crush. erel_fsetdec. simpl+. eassumption.
+Qed.
+
+(*** SubSump *)
+Lemma Complete_SubSump : forall σ ψ t1 L,
+    exists a__p τ__p, a__p ### L /\ length a__p = foralls σ /\ open_Sc_wrt_A σ a__p = Some τ__p
+             /\ PrincipalSubSumptionA ψ t1 σ (apply_A_left t1 a__p) a__p τ__p.
+Proof.
+  intros. forwards [a__p [τ__p [FR [LEN [EQ SS__p]]]]]: SubSump_reversible σ ψ t1 L.
+  exists a__p τ__p. splits. eassumption. eassumption. eassumption. splits. eassumption.
+  intros t__np a__np τ__np SS__np. apply close_Sc_wrt_A_open_Sc_wrt_A_eq in EQ. subst.
+  forwards [τs [EQ__t [EQ__τ [EQ__len WF]]]]: SubSumpTmA_to SS__np. subst.
+  exists (Λ a__np ⬪ apply_Ts_left (Λ a__p ⬪ apply_A_left t1 a__p) τs). splits.
+  - eauto using Complete_SubSumpTm'_helper__SS.
+  - forwards FR__np: SubSumpTmA_FrA SS__np.
+    clear - FR__np EQ__τ EQ__len. gen τs ψ t1 a__p τ__np. induction a__np as [|α__np a__np].
+
+    introv FR EQ__len' EQ__τ. simpl+. clear FR. apply open_Sc_wrt_τs_open_Sc_wrt_τs' in EQ__τ. remember (S__T τ__np) as σ__np. clear Heqσ__np.
+    assert (EQ__len : foralls (∀ a__p ⬪ S__T τ__p) >= length τs). crush. clear EQ__len'.
+    clear τ__np. gen τ__p ψ t1 a__p σ__np. induction τs as [|τ τs] using rev_ind. all:intros.
+
+    + simpl+. simpl+ in EQ__τ. inverts EQ__τ. admit.
+    + simpl+. forwards [σ__np' [EQ EQ__τ']]: open_Sc_wrt_τs'_snoc EQ__τ. crush. subst.
+      applys_eq CompatTApp. applys IHτs τ__p. crush. eassumption. admit.
+    + simpl+.
+      apply FrA_cons in FR__np. destruct FR__np as [NIL__np FR__np].
+      (**)
+      applys CompatTLam (E_skvars ψ ∪ varl a__np ∪ varl a__p ∪ fv__α(apply_A_left t1 a__p)). intros β NIL__βa.
+      do 2 rewrite <- subst_skvar_Tm_spec.
+        rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:clear; crush. 2:eauto. 2:simpl+; fsetdec.
+        rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:clear; crush. 2:eauto. 2:simpl+; fsetdec.
+      rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:clear; crush. 2:eauto. 2:simpl+; fsetdec.
+      (**)
+      do 2 rewrite subst_skvar_Tm_apply_Ts_left. rewrite subst_skvar_Tm_close_Tm_wrt_A'. 2,3:fsetdec. rewrite subst_skvar_Tm_apply_A_left.
+      eapply IHa__np. simpl+.
+      forwards: FrA_shift. applys FrA_cons β. splits. eassumption. fsetdec. FrA_L_sub. simpl+. crush.
+      applys_eq subst_skvar_Sc_open_Sc_wrt_Ts. 2:eassumption.
+      rewrite open_Sc_wrt_Ts_subst_skvar_Sc_dist. 2:crush. fequals.
+      rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:crush. 2:admit. 2:simpl+; fsetdec. subst_notin'. 2:admit.
+      rewrite rename_skvar_A_notin. 2:admit. reflexivity.
+Admitted.

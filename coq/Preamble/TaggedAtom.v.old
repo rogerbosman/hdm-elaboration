@@ -1,0 +1,108 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+(* Require Import Defs.HdmDefs. *)
+
+Require Import Classes.Morphisms.
+Require Import Coq.Program.Equality.
+Require Import Metalib.Metatheory.
+Require Import TLC.LibTactics.
+Require Import Cpdtlib.CpdtTactics.
+
+Require Import Coq.Arith.Arith.
+Require Import Coq.Arith.Max.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Lists.List.
+Require Import Coq.Structures.Equalities.
+
+Require Import Coq.FSets.FSets.
+Require Import Metalib.CoqListFacts.
+Require Import Metalib.FSetExtra.
+Require Import Metalib.FSetWeakNotin.
+Require Import Metalib.LibTactics.
+
+Require Import Lia.
+
+Notation "[ ]" := nil (format "[ ]").
+Notation "[ x ]" := (one x).
+Notation "[ x ; y ; .. ; z ]" :=  (cons x (cons y .. (cons z nil) ..)) : list_scope.
+
+(* (** To let the set stuff point to what is defined in HdmDefs *) *)
+(* Require Import Defs.HdmDefs. *)
+(* (** To let eq point to Leibniz equality again*) *)
+(* Require Import Coq.Init.Logic. *)
+(** To let map point to list map again *)
+Require Import Coq.Lists.List.
+
+Definition NatBool := (nat * bool)%type.
+
+Definition eq_dec_NatBool : forall (x y : NatBool), {x = y} + {x <> y}.
+  intros. destruct x. destruct y.
+  destruct (Nat.eq_dec n n0); destruct (Bool.bool_dec b b0). subst. left. reflexivity.
+  all:right; intro H; inversion H; congruence.
+Defined.
+
+Module TaggedAtom : ATOM.
+
+  (* begin hide *)
+  Definition atom := (nat * bool)%type.
+  Definition t := atom.
+
+  Definition eq_dec := eq_dec_NatBool.
+
+  Lemma max_lt_r : forall x y z,
+    x <= z -> x <= max y z.
+  Proof.
+    induction x. auto with arith.
+    induction y. auto with arith.
+      simpl. induction z. lia. auto with arith.
+  Qed.
+
+  Lemma nat_list_max : forall (xs : list nat),
+    { n : nat | forall x, List.In x xs -> x <= n }.
+  Proof.
+    induction xs as [ | x xs [y H] ].
+    (* case: nil *)
+    exists 0. inversion 1.
+    (* case: cons x xs *)
+    exists (max x y). intros z J. simpl in J. destruct J as [K | K].
+      subst. auto with arith.
+      auto using max_lt_r.
+  Qed.
+
+  Lemma in_map_fst : forall (n:nat) (b:bool) xs,
+      In (n, b) xs
+    -> In n (map fst xs).
+  Proof. intros. induction xs; crush. Qed.
+
+  Lemma atom_fresh_for_list :
+    forall (xs : list atom), { n : atom | ~ List.In n xs }.
+  Proof.
+    intros xs. destruct (nat_list_max (map fst xs)) as [x H].
+    exists ((S x), false). intros J. lapply (H (S x)). lia.
+    eauto using in_map_fst.
+  Qed.
+
+  Definition fresh (l : list atom) :=
+    match atom_fresh_for_list l with
+      (exist _ x _) => x
+    end.
+
+  Definition fresh_decl (l : list atom) :=
+    match atom_fresh_for_list l with
+      (exist _ x _) => (fst x, true)
+    end.
+
+  Lemma fresh_not_in : forall l, ~ In (fresh l) l.
+  Proof.
+    intro l. unfold fresh.
+    destruct atom_fresh_for_list. crush.
+  Qed.
+
+  Definition nat_of := fun (x : atom) => fst x.
+  Definition tag_of := fun (x : atom) => snd x.
+
+  Include HasUsualEq <+ UsualIsEq <+ UsualIsEqOrig.
+
+  (* end hide *)
+
+End TaggedAtom.

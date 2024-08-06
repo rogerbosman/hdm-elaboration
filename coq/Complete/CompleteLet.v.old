@@ -1,0 +1,87 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.ERels.
+Require Import Defs.Subst.
+Require Import Defs.Sub.
+
+Require Import Complete.PrincipalTyping.
+
+(*** SubSump *)
+Lemma SubSumpTm'_SubSump : forall ψ t1 σ1 t2 σ2,
+    SubSumpTm' ψ t1 σ1 t2 σ2
+  -> SubSump'   ψ    σ1    σ2.
+Admitted.
+
+Lemma SubSumpTm'_subst_tvar_Tm : forall x t__in ψ t1 σ1 t2 σ2,
+    SubSumpTm' ψ t1 σ1 t2 σ2
+  -> lc(t__in)
+  -> SubSumpTm' ψ ({t__in ≔__x x}t1) σ1 ({t__in ≔__x x}t2) σ2.
+Proof.
+  introv SS. induction SS. econstructor. induction SS. crush.
+  - eauto.
+  - simpl+. econstructor. intros α NIL__α. specializes H NIL__α. applys_eq H. 2:assumption.
+    rewrite subst_tvar_Tm_open_Tm_wrt_T. reflexivity. assumption.
+Qed.
+
+Lemma SubSumpTm'_E_A_sk_sub : forall ψ1 ψ2 t1 σ1 t2 σ2,
+    SubSumpTm' ψ1 t1 σ1 t2 σ2
+  -> ψ1 ⊆ψα ψ2
+  -> SubSumpTm' ψ2 t1 σ1 t2 σ2.
+Proof.
+  introv SS SUB. gen ψ2. induction SS; intros.
+  econstructor. rewrite <- SUB. assumption.
+  econstructor. intros. eapply H. eassumption. unfolds in SUB. erel_fsetdec.
+Qed.
+#[export] Hint Resolve SubSumpTm'_E_A_sk_sub : core.
+#[export] Instance SubSumpTm'_E_sk_sub_proper : Proper (E_A_sk_sub ==> eq ==> eq ==> eq ==> eq ==> impl) SubSumpTm'.
+Proof. autounfold. intros. subst. eauto. Qed.
+
+(*** DecA *)
+Lemma DecA_generalize_binding : forall ψ x σ1 σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists a' τ' t',
+      ψ ::x x :- σ1 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'.
+Admitted.
+
+Lemma DecA_generalize_binding' : forall ψ x σ1 σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists t',
+      ψ ::x x :- σ1 ⊢d' e ▸ ⟨a⟩ τ ⤳ t'
+    /\ ψ ⊢t≈ t ≈ t' ▸ (S__T τ).
+Admitted.
+
+Lemma DecA_weaken_app : forall ψ2 ψ1 e a τ t,
+    ψ1 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> exists a' τ' t',
+      ψ1 +++ ψ2 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'.
+Admitted.
+
+(*** Lemmas *)
+Lemma complete_let_principaltyping: forall (e1 e2 : Ex) (ψ : E) (a1 a2 : A) (τ1 τ2 : T) (t1 t2 : Tm) (x : atom),
+    PrincipalTyping ψ e1 a1 τ1 t1
+  -> PrincipalTyping (ψ ::x x :- (∀ a1 ⬪ S__T τ1)) (open_Ex_wrt_Ex e2 (e__Var_f x)) a2 τ2 t2
+  -> PrincipalTyping ψ (e__Let e1 e2) a2 τ2 ({Λ a1 ⬪ t1 ≔__x x}t2).
+Proof.
+  introv [DEC1 PRIN1] [DEC2 PRIN2]. splits.
+  - rewrite subst_tvar_Tm_spec. applys DecA__Let empty. eassumption.
+    intros y NIL__y. asserts_rewrite (y = x) in *. admit. applys_eq DEC2. apply open_Tm_wrt_Tm_close_Tm_wrt_Tm.
+  - intros a2__np τ2__np t2__np DEC'. inverts DEC'.
+    rename a3 into a1__np. rename τ0 into τ1__np. rename t3 into t1__np. rename DEC0 into DEC1__np. rename DEC3 into DEC2__np.
+    specializes PRIN1 DEC1__np. destruct PRIN1 as [t1' [SS1 EQ1]].
+    (**)
+    forwards [y NIL__y]: atom_fresh L. asserts_rewrite (y = x) in *. admit.
+    specializes DEC2__np x. specializes DEC2__np. fsetdec.
+    forwards [t2__np [DEC2__np' EQ2']]: DecA_generalize_binding' (∀ a1 ⬪ S__T τ1) DEC2__np. eapply SubSumpTm'_SubSump. eassumption.
+    specializes PRIN2 DEC2__np'. destruct PRIN2 as [t2' [SS2 EQ2]].
+    (**)
+    exists. splits.
+    + eapply (SubSumpTm'_subst_tvar_Tm x  (Λ a1 ⬪ t1)) in SS2. 2:admit.
+      eapply SubSumpTm'_E_A_sk_sub. applys_eq SS2. rewrite subst_tvar_Tm_close_Tm_wrt_A. 2:admit. 2:admit. reflexivity.
+      erel_fsetdec.
+    + rewrite subst_tvar_Tm_spec.
+Admitted.

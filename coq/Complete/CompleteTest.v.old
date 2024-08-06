@@ -1,0 +1,534 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+
+Require Import Defs.Dec.
+Require Import Defs.E.
+Require Import Defs.EInst.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Freevars.
+Require Import Defs.Inf.
+(* Require Import Defs.Inst. *)
+Require Import Defs.Lc.
+Require Import Defs.List.
+Require Import Defs.NoDup.
+Require Import Defs.Subst.
+Require Import Defs.Sub.
+(* Require Import Defs.SubSump. *)
+
+(* Require Import Defs.WfE. *)
+Require Import Defs.WfSTt.
+
+(* Require Import Complete.Rename. *)
+
+Notation Sub_to_A θ := (map snd θ).
+
+(*** induction on e and t *)
+Inductive DecStruc : Ex -> Tm -> Prop :=
+  | Var : forall (x:var) (t:Tm),
+      DecStruc (e__Var_f x) t
+  | Unit :
+      DecStruc e__Unit t__Unit
+  | Abs : forall (L:vars) (e:Ex) (t:Tm)
+      (DS: (forall tx, tx ∉ L -> (forall x, x ∉ L ∪ {{ tx }} -> DecStruc (open_Ex_wrt_Ex e (e__Var_f x)) (open_Tm_wrt_Tm t (t__Var_f tx))))),
+      DecStruc (e__Lam e)
+  (* | App : forall (e1 e2:Ex) *)
+  (*     (DS1 : DecStruc e1) *)
+  (*     (DS2 : DecStruc e2), *)
+  (*     DecStruc (e__App e1 e2) *)
+  (* | Let : forall (L:vars) (e1 e2:Ex) *)
+  (*     (DS1 : DecStruc e1) *)
+  (*     (DS2 : forall x, x ∉ L -> DecStruc (open_Ex_wrt_Ex e2 (e__Var_f x))), *)
+  (*     DecStruc (e__Let e1 e2) *)
+  .
+#[export] Hint Constructors DecStruc : core.
+
+
+(*** induction on e *)
+Module Type CompleteRelArgs.
+  (* Parameter R : E -> E -> Prop. *)
+  (* #[export] Hint Unfold R : core. *)
+
+  (* Notation "ψ1 ∼ ψ2" := (R ψ1 ψ2) (at level 70). *)
+
+  (* Parameter R_app_proper : Proper (R ==> eq ==> R) E__app. *)
+
+  (* Parameter R__obj : forall ψ1 ψ2 t σ, *)
+  (*     ψ1 ∼ ψ2 *)
+  (*   -> ψ1 ∼ (ψ2 ::o ⦇t ▸ ⟨[]⟩ σ⦈). *)
+End CompleteRelArgs.
+
+Inductive DecStruc : Ex -> Prop :=
+  | Var : forall (x:var),
+      DecStruc (e__Var_f x)
+  | Unit :
+      DecStruc e__Unit
+  | Abs : forall (L:vars) (e:Ex)
+      (DS: forall x, x ∉ L -> DecStruc (open_Ex_wrt_Ex e (e__Var_f x))),
+      DecStruc (e__Lam e)
+  | App : forall (e1 e2:Ex)
+      (DS1 : DecStruc e1)
+      (DS2 : DecStruc e2),
+      DecStruc (e__App e1 e2)
+  | Let : forall (L:vars) (e1 e2:Ex)
+      (DS1 : DecStruc e1)
+      (DS2 : forall x, x ∉ L -> DecStruc (open_Ex_wrt_Ex e2 (e__Var_f x))),
+      DecStruc (e__Let e1 e2)
+  .
+#[export] Hint Constructors DecStruc : core.
+
+Lemma Dec_DecStruc : forall ψ e τ t,
+    ψ |=d e ▸ τ ⤳ t
+  -> DecStruc e.
+Proof.
+  introv DEC. induction DEC.
+  - crush.
+  - crush.
+  - forwards [tx NIL__tx]: atom_fresh.
+    specializes H tx.
+    econstructor. intros. eapply H. eassumption. eassumption.
+  - crush.
+  - forwards [tx NIL__tx]: atom_fresh.
+    specializes H0 tx.
+    econstructor. eassumption. intros. eapply H0. eassumption. eassumption.
+Qed.
+
+Lemma destruct_open_rec_tm : forall (t2':Tm) (tx:var) (n : nat),
+    exists t2, t2' = open_Tm_wrt_Tm_rec n (t__Var_f tx) t2 /\ tx ∉ ftv_Tm t2.
+Proof.
+  intros t2' tx. induction t2'; intro; simpl+.
+  - destruct (lt_eq_lt_dec n 0). destruct s.
+    + exists (t__Var_b n). split. crush. crush.
+    + exists. split. crush. simpl+. if_dec. crush. crush.
+    + exists. split. crush. simpl+. if_dec. crush. crush.
+  - destruct (tx0 == tx).
+    + exists (t__Var_b n). split. simpl+.
+      destruct (lt_eq_lt_dec n n). 2:crush. destruct s. crush. crush.
+      simpl+. crush.
+    + exists. split. crush. simpl+. if_taut. simpl+. crush.
+  - exists t__Unit. split; simpl+; crush.
+  - forwards [t__IH1 [EQ1 NI__fv1]]: IHt2'1 n.
+    forwards [t__IH2 [EQ2 NI__fv2]]: IHt2'2 n.
+    exists (t__App t__IH1 t__IH2). split. crush. fsetdec+.
+  - forwards [t__IH [EQ NI__fv]]: IHt2' n.
+    exists (t__TApp t__IH τ). split. crush. simpl+. crush.
+  - forwards [t__IH [EQ NI__fv]]: IHt2' (S n).
+    exists (t__Lam σ t__IH). split. unfold open_Tm_wrt_Tm. simpl+. crush.
+    simpl+. crush.
+  - forwards [t__IH [EQ NI__fv]]: IHt2' n.
+    exists (t__TLam t__IH). split. crush. simpl+. crush.
+  - forwards [t__IH1 [EQ1 NI__fv1]]: IHt2'1 n.
+    forwards [t__IH2 [EQ2 NI__fv2]]: IHt2'2 (S n).
+    exists (t__Let σ t__IH1 t__IH2). split. crush. fsetdec+.
+Qed.
+Corollary destruct_open_tm : forall (t2':Tm) (tx:var),
+    exists t2, t2' = open_Tm_wrt_Tm t2 (t__Var_f tx) /\ tx ∉ ftv_Tm t2.
+Proof. unfold open_Tm_wrt_Tm. intros t2' tx. forwards: destruct_open_rec_tm t2' tx 0. crush. Qed.
+
+Fact lc_T_lc : forall τ,
+    lc(τ)
+  -> lc_T τ.
+Proof. crush. Qed.
+#[export] Hint Resolve lc_T_lc : core.
+
+Lemma Sub_app_Sc_close_Sc_wrt_T : forall θ σ α,
+    lc(θ)
+  -> α ∉ dom_Sub θ
+  -> α ∉ skvars_codom_Sub θ
+  -> ⟦θ ▹ close_Sc_wrt_T α σ⟧ = close_Sc_wrt_T α ⟦θ ▹ σ⟧.
+Proof.
+  introv LC NID NICD. ind_Sub θ. crush.
+  dist. rewrite IHθ. 2:eauto. 2:crush. 2:crush. remember ⟦θ ▹ σ⟧ as σ'.
+  eapply subst_skvar_Sc_close_Sc_wrt_T. eauto. fsetdec+. crush.
+Qed.
+
+Ltac a_ind a := induction a as [?|α a].
+
+Lemma Sub_app_Sc_close_Sc_wrt_A : forall θ σ a,
+    lc(θ)
+  -> varl a ∐ dom_Sub θ
+  -> varl a ∐ skvars_codom_Sub θ
+  -> ⟦θ ▹ close_Sc_wrt_A σ a⟧ = close_Sc_wrt_A ⟦θ ▹ σ⟧ a.
+Proof.
+  introv LC NID NICD. a_ind a. crush.
+  simpl+. fequals. rewrite <- IHa.
+  2:clear - NID; disj_sub.
+  2:clear - NICD; disj_sub.
+  apply Sub_app_Sc_close_Sc_wrt_T. auto.
+  in_disj.
+  in_disj.
+Qed.
+
+(* Lemma bla : forall θ σ a a__dec, *)
+(*     close_Sc_wrt_A (θ σ) a__dec = close_Sc_wrt_A σ (Sub_to_A θ). *)
+
+(*** Attempt without cofinite *)
+Theorem Inf_complete_open : forall e,
+    DecStruc e
+  -> forall ψ__dec τ__dec t__dec,
+    ψ__dec |=d e ▸ τ__dec ⤳ t__dec
+  -> forall L' ψ__in,
+    L' |=e' ψ__in ⤳ ψ__dec
+  (* -> L ⊆ L' *)
+  -> exists ψ__out a__alg τ__alg t__alg θ,
+      ψ__in |= e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg =| ψ__out
+    /\ {L', •, []} |=e ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__dec ▸ ⟨[]⟩ S__T τ__dec⦈, θ}.
+    (* /\ Sub_to_A θ__alg = a__alg *)
+    (* /\ ⟦θ__alg ++ θ ▹ τ__alg⟧ = τ__dec *)
+    (* /\ ⟦θ__alg ++ θ ▹ t__alg⟧ = t__dec. *)
+Proof.
+  introv DS. induction DS.
+
+  - admit.
+  - admit.
+  - admit.
+  - admit.
+
+  - rename IHDS into IH__e1. rename H into IH__e2.
+
+    introv DEC. inversion DEC as [?|?|?|?|L' H2 H3 H4 H5 a__dec τ__dec1 t__dec1 t__dec2 DEC1 DEC2 H12 H13 H14 H15]. subst.
+    intros L'' ψ__in [θ INST].
+
+    forwards IH1: IH__e1 DEC1 (ψ__in ::a []).
+      exists. econstructor. eassumption. admit. auto.
+      destruct IH1 as [ψ1' [a1 [τ [t1 [θ1 [Inf1 INST1]]]]]]. clear IH__e1.
+
+    assert (ADM__SS : exists ψ1, ψ1' = ψ1 ::a []).
+      admit. destruct ADM__SS as [ψ1 ADM__SS]. rewrite ADM__SS in *. clear ψ1' ADM__SS.
+    assert (Inf_weaken__Nil : forall ψ__in e a τ t ψ__out, ψ__in ::a [] |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out ::a [] <-> ψ__in |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out). admit.
+    rewrite Inf_weaken__Nil in Inf1. clear Inf_weaken__Nil.
+    inv_EInst'. sort. cleanhyps. simpl+ in *.
+
+    forwards [tx NIL__tx]: atom_fresh (L ∪ L' ∪ ftv_Tm t__dec2).
+    forwards [x NIL__x]: atom_fresh (L ∪ L' ∪ {{tx}}).
+
+    specializes DEC2 tx. specializes DEC2 x. fsetdec. specializes DEC2. fsetdec.
+
+    asserts_rewrite (ψ__dec ::x x :- close_Sc_wrt_A (S__T ⟦θ3 ++ θ4 ▹ τ⟧) a__dec = ψ__dec ::x x :- close_Sc_wrt_A (S__T ⟦θ3 ++ θ4 ▹ τ⟧) a__dec ::o ⦇close_Tm_wrt_A ⟦θ3 ++ θ4 ▹ t1⟧ a__dec ▸ ⟨[]⟩ S__T T__Unit⦈) in DEC2.
+      admit.
+
+    forwards IH2: IH__e2 x L'' ((ψ1 ::x x :- close_Sc_wrt_A (S__T τ) a1) ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+      fsetdec. apply DEC2.
+      exists. applys_eq EInst__O. 4:auto.
+      2:{ econstructor. eassumption. tauto.}
+      simpl+. fequals. fequals.
+
+      rewrite  Sub_app_Sc_close_Sc_wrt_A. 2,3,4:admit. simpl+. dist. remember ⟦θ4 ▹ τ⟧ as τ'.
+      simpl+. unfolds.
+      admit.
+      admit. auto. extend_in SUB.
+    destruct IH2 as [ψ__out' [a2 [τ2 [t2' [θ2 [Inf2 INST2]]]]]].
+    assert (ADM__SS : exists ψ__out σ__out t__out, ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t__out ▸ ⟨[]⟩ S__T T__Unit⦈).
+      admit. destruct ADM__SS as [ψ__out [σ__out [t__out ADM__SS]]]. rewrite ADM__SS in *. clear ψ__out' ADM__SS.
+    inv_EInst'. sort. cleanhyps.
+
+
+    specializes IH__e1 DEC1. destruct IH__e1 as [L1 IH__e1].
+
+    forwards [tx NIL__tx]: atom_fresh (L ∪ L' ∪ ftv_Tm t__dec2).
+    forwards [x NIL__x]: atom_fresh (L ∪ L' ∪ {{tx}}).
+
+    specializes DEC2 tx. specializes DEC2 x. fsetdec. specializes DEC2. fsetdec.
+    asserts_rewrite (ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a__dec = ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a__dec ::o ⦇close_Tm_wrt_A t__dec1 a__dec ▸ ⟨[]⟩ S__T T__Unit⦈) in DEC2.
+      admit.
+
+    specializes IH__e2 DEC2. fsetdec.
+    destruct IH__e2 as [L2 IH__e2].
+
+    exists. intro L''. introv [θ INST] SUB.
+
+    forwards IH1: IH__e1 (ψ__in ::a []).
+      exists. econstructor. eassumption. admit. auto.
+      extend_in SUB.
+      destruct IH1 as [ψ1' [a1 [τ [t1 [θ1 [Inf1 INST1]]]]]].
+
+    assert (ADM__SS : exists ψ1, ψ1' = ψ1 ::a []).
+      admit. destruct ADM__SS as [ψ1 ADM__SS]. rewrite ADM__SS in *. clear ψ1' ADM__SS.
+    assert (Inf_weaken__Nil : forall ψ__in e a τ t ψ__out, ψ__in ::a [] |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out ::a [] <-> ψ__in |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out). admit.
+    rewrite Inf_weaken__Nil in Inf1. clear Inf_weaken__Nil.
+    inv_EInst'. sort. cleanhyps.
+
+    forwards IH2: IH__e2 L'' ((ψ1 ::x x :- close_Sc_wrt_A (S__T τ) a1) ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+      exists. applys_eq EInst__O. 4:auto.
+      2:{ econstructor. eassumption. tauto.}
+      simpl+. fequals. fequals.
+
+      rewrite  Sub_app_Sc_close_Sc_wrt_A. 2,3,4:admit. simpl+. dist. remember ⟦θ4 ▹ τ⟧ as τ'.
+      simpl+. unfolds.
+      admit.
+      admit. auto. extend_in SUB.
+    destruct IH2 as [ψ__out' [a2 [τ2 [t2' [θ2 [Inf2 INST2]]]]]].
+    assert (ADM__SS : exists ψ__out σ__out t__out, ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t__out ▸ ⟨[]⟩ S__T T__Unit⦈).
+      admit. destruct ADM__SS as [ψ__out [σ__out [t__out ADM__SS]]]. rewrite ADM__SS in *. clear ψ__out' ADM__SS.
+    inv_EInst'. sort. cleanhyps.
+
+    forwards [t2 [EQ NI__t2]]: destruct_open_tm t2' tx. subst.
+
+    exists. splits.
+    +   econstructor. eassumption.
+        intros ty NIL__ty y NIL__Y.
+        asserts_rewrite (ty = tx) in *. admit.
+        asserts_rewrite (y = x) in *. admit.
+        eassumption.
+    +   simpl+. applys_eq EInst__O. fequals. simpl+. fequals.
+        admit. admit.
+        simpl+ in H8. symmetry. eapply open_Tm_wrt_Tm_inj. 3:eassumption. admit. clear - NIL__tx. fsetdec.
+        simpl+. reflexivity. eassumption. auto. admit.
+Qed.
+
+
+
+(*** Some attempt IDK, stuck on cofinite stuff *)
+
+(* Lemma close_A_SS : forall  *)
+
+Module Complete (Import Args : CompleteRelArgs).
+  Theorem Inf_complete_open : forall e,
+      DecStruc e
+    -> forall ψ__dec τ__dec t__dec,
+      ψ__dec |=d e ▸ τ__dec ⤳ t__dec
+    -> exists L, forall L' ψ__in,
+      L' |=e' ψ__in ⤳ ψ__dec
+    -> L ⊆ L'
+    -> exists ψ__out a__alg τ__alg t__alg θ,
+        ψ__in |= e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg =| ψ__out
+      /\ {L', •, []} |=e ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__dec ▸ ⟨[]⟩ S__T τ__dec⦈, θ}.
+      (* /\ Sub_to_A θ__alg = a__alg *)
+      (* /\ ⟦θ__alg ++ θ ▹ τ__alg⟧ = τ__dec *)
+      (* /\ ⟦θ__alg ++ θ ▹ t__alg⟧ = t__dec. *)
+  Proof.
+    introv DS. induction DS.
+
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+
+    - rename IHDS into IH__e1. rename H into IH__e2.
+
+      introv DEC. inversion DEC as [?|?|?|?|L' H2 H3 H4 H5 a__dec τ__dec1 t__dec1 t__dec2 DEC1 DEC2 H12 H13 H14 H15]. subst.
+
+      specializes IH__e1 DEC1. destruct IH__e1 as [L1 IH__e1].
+
+      forwards [tx NIL__tx]: atom_fresh (L ∪ L' ∪ ftv_Tm t__dec2).
+      forwards [x NIL__x]: atom_fresh (L ∪ L' ∪ {{tx}}).
+
+      specializes DEC2 tx. specializes DEC2 x. fsetdec. specializes DEC2. fsetdec.
+      asserts_rewrite (ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a__dec = ψ__dec ::x x :- close_Sc_wrt_A (S__T τ__dec1) a__dec ::o ⦇close_Tm_wrt_A t__dec1 a__dec ▸ ⟨[]⟩ S__T T__Unit⦈) in DEC2.
+        admit.
+
+      specializes IH__e2 DEC2. fsetdec.
+      destruct IH__e2 as [L2 IH__e2].
+
+      exists. intro L''. introv [θ INST] SUB.
+
+      forwards IH1: IH__e1 (ψ__in ::a []).
+        exists. econstructor. eassumption. admit. auto.
+        extend_in SUB.
+        destruct IH1 as [ψ1' [a1 [τ [t1 [θ1 [Inf1 INST1]]]]]].
+
+      assert (ADM__SS : exists ψ1, ψ1' = ψ1 ::a []).
+        admit. destruct ADM__SS as [ψ1 ADM__SS]. rewrite ADM__SS in *. clear ψ1' ADM__SS.
+      assert (Inf_weaken__Nil : forall ψ__in e a τ t ψ__out, ψ__in ::a [] |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out ::a [] <-> ψ__in |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out). admit.
+      rewrite Inf_weaken__Nil in Inf1. clear Inf_weaken__Nil.
+      inv_EInst'. sort. cleanhyps.
+
+      forwards IH2: IH__e2 L'' ((ψ1 ::x x :- close_Sc_wrt_A (S__T τ) a1) ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+        exists. applys_eq EInst__O. 4:auto.
+        2:{ econstructor. eassumption. tauto.}
+        simpl+. fequals. fequals.
+
+        rewrite  Sub_app_Sc_close_Sc_wrt_A. 2,3,4:admit. simpl+. dist. remember ⟦θ4 ▹ τ⟧ as τ'.
+        simpl+. unfolds.
+        admit.
+        admit. auto. extend_in SUB.
+      destruct IH2 as [ψ__out' [a2 [τ2 [t2' [θ2 [Inf2 INST2]]]]]].
+      assert (ADM__SS : exists ψ__out σ__out t__out, ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t__out ▸ ⟨[]⟩ S__T T__Unit⦈).
+        admit. destruct ADM__SS as [ψ__out [σ__out [t__out ADM__SS]]]. rewrite ADM__SS in *. clear ψ__out' ADM__SS.
+      inv_EInst'. sort. cleanhyps.
+
+      forwards [t2 [EQ NI__t2]]: destruct_open_tm t2' tx. subst.
+
+      exists. splits.
+      +   econstructor. eassumption.
+          intros ty NIL__ty y NIL__Y.
+          asserts_rewrite (ty = tx) in *. admit.
+          asserts_rewrite (y = x) in *. admit.
+          eassumption.
+      +   simpl+. applys_eq EInst__O. fequals. simpl+. fequals.
+          admit. admit.
+          simpl+ in H8. symmetry. eapply open_Tm_wrt_Tm_inj. 3:eassumption. admit. clear - NIL__tx. fsetdec.
+          simpl+. reflexivity. eassumption. auto. admit.
+Qed.
+
+
+(*** Attempt without ::a [] *)
+Module Type CompleteRelArgs.
+  Parameter R : E -> E -> Prop.
+  #[export] Hint Unfold R : core.
+
+  Notation "ψ1 ∼ ψ2" := (R ψ1 ψ2) (at level 70).
+
+  Parameter R_app_proper : Proper (R ==> eq ==> R) E__app.
+
+  Parameter R__obj : forall ψ1 ψ2 t σ,
+      ψ1 ∼ ψ2
+    -> ψ1 ∼ (ψ2 ::o ⦇t ▸ ⟨[]⟩ σ⦈).
+End CompleteRelArgs.
+
+Module Complete (Import Args : CompleteRelArgs).
+  Theorem Inf_complete_open : forall ψ__dec e τ__dec t__dec,
+      ψ__dec |=d e ▸ τ__dec ⤳ t__dec
+    -> exists L, forall L' ψ__in ψ__dec,
+      L' |=e' ψ__in ⤳ ψ__dec
+    -> ψ__dec ∼ ψ__dec
+    -> L ⊆ L'
+    -> exists ψ__out a__alg τ__alg t__alg θ (* θ__alg *),
+        ψ__in |= e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg =| ψ__out
+      /\ {L', •, []} |=e ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__dec ▸ ⟨[]⟩ S__T τ__dec⦈, θ}.
+      (* /\ Sub_to_A θ__alg = a__alg *)
+      (* /\ ⟦θ__alg ++ θ ▹ τ__alg⟧ = τ__dec *)
+      (* /\ ⟦θ__alg ++ θ ▹ t__alg⟧ = t__dec. *)
+  Proof.
+    introv DEC. induction DEC; intros.
+
+    - exists empty. introv [θ INST] REL _. rename t0 into t__dec. rename τ into τ__dec.
+
+      assert (ADM: exists σ' t__alg (θ__alg:Sub) τ__alg,
+                 (σ', x) ∈σx E_bindings ψ__in
+               /\ Inst (t__Var_f x) σ' t__alg (Sub_to_A θ__alg) τ__alg (E_A_skvars ψ__in)
+               /\ ⟦θ__alg ++ θ ▹ τ__alg⟧ = τ__dec
+               /\ ⟦θ__alg ++ θ ▹ t__alg⟧ = t__dec
+             ). admit.
+        destruct ADM as [σ' [t__alg [θ__alg [τ__alg [IN' [INS [SA__τ SA__t]]]]]]].
+
+      exists ψ__in. exists. splits. econstructor. eassumption. eassumption.
+      applys_eq EInst__O. simpl+. crush. eassumption. auto. admit.
+
+    - exists empty. introv [θ INST] _. exists ψ__in. exists. splits. constructor. tauto.
+      applys_eq EInst__O. simpl+. reflexivity. eassumption. admit. auto.
+
+    - admit.
+
+    - destruct IHDEC1 as [L1 IHDEC1]. destruct IHDEC2 as [L2 IHDEC2]. exists. introv [θ INST] REL SUB.
+      rename τ1 into τ__dec1. rename τ2 into τ__dec2.
+      rename t1 into t__dec1. rename t2 into t__dec2.
+
+      forwards IH1: IHDEC1. exists. eassumption. eassumption. extend_in SUB.
+        destruct IH1 as [ψ1 [a1 [τ [t1 [θ1 [Inf1 Inst1]]]]]].
+        inv_EInst'.
+
+      forwards IH2: IHDEC2 L' (ψ1 ::o ⦇t1 ▸ ⟨a1⟩ S__T τ⦈).
+        exists. econstructor. eassumption. apply FrA_nil. eassumption. tauto. tauto. auto using R__obj. extend_in SUB.
+        destruct IH2 as [ψ2' [a2 [τ1 [t2 [θ2 [Inf2 INST2]]]]]].
+
+      assert (ADM__SS: exists ψ2 t1' a1' τ', ψ2' = ψ2 ::o ⦇t1' ▸ ⟨a1'⟩ S__T τ'⦈).
+        admit. destruct ADM__SS as [ψ2 [t1' [a1' [τ' ADM__SS]]]]. rewrite ADM__SS in *. clear ψ2' ADM__SS.
+
+      exists. splits. econstructor. eassumption. eassumption.
+
+      admit. admit. admit.
+
+   - rename τ1 into τ__dec1. rename τ into τ__dec. rename t1 into t__dec1. rename t2 into t__dec2.
+     forwards [tx NIL__tx]: atom_fresh L.
+     forwards [x NIL__x]: atom_fresh (L \u {{tx}}).
+
+     forwards [L1 IHDEC2]: H0 tx NIL__tx x NIL__x. clear H0. destruct IHDEC as [L2 IHDEC1].
+
+     exists. introv [θ INST] REL SUB.
+
+     forwards IH1: IHDEC1 L' (ψ__in ::a []) (ψ__dec ::a a).
+       exists. econstructor. eassumption. admit. auto.
+       norm. apply R_app_proper. eassumption. reflexivity.
+       extend_in SUB.
+       destruct IH1 as [ψ1' [a1 [τ [t1 [θ1 [Inf1 INST1]]]]]].
+
+     assert (ADM__SS : exists ψ1, ψ1' = ψ1 ::a []).
+       admit. destruct ADM__SS as [ψ1 ADM__SS]. rewrite ADM__SS in *. clear ψ1' ADM__SS.
+     assert (Inf_weaken__Nil : forall ψ__in e a τ t ψ__out, ψ__in ::a [] |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out ::a [] <-> ψ__in |= e ▸ ⟨a⟩ τ ⤳ t =| ψ__out). admit.
+
+     rewrite Inf_weaken__Nil in Inf1.
+
+     inv_EInst'. sort. cleanhyps.
+
+     (* assert (INST1': exists ψ', L' |=e' (ψ1 ::x x :- close_Sc_wrt_A (S__T τ) a1) ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈ ⤳ ψ'). *)
+     (* { exists. (* inv_EInst'. *) *)
+     (*   econstructor. econstructor. eassumption. *)
+     (*   applys_eq EInst__O. *)
+     (*   econstructor. *)
+
+     (* admit. *)
+     (*   destruct INST1' as [?ψ INST1']. *)
+
+     forwards IH2: IHDEC2 L' (ψ1 ::a [] ::x x :- close_Sc_wrt_A (S__T τ) a1 ::o ⦇close_Tm_wrt_A t1 a1 ▸ ⟨[]⟩ S__T T__Unit⦈).
+       + exists. econstructor. econstructor. econstructor. eassumption.
+         instantiate (1 := []). auto. auto. tauto.
+         instantiate (1 := []). auto. auto. tauto. tauto.
+       + apply R__obj. norm. applys_eq R_app_proper. eassumption. simpl+. f_equal.
+
+       + extend_in SUB.
+
+
+         instantiate (1 := []). auto. auto. tauto. tauto.
+       +
+
+       eassumption.
+       admit. admit. admit.
+       destruct IH2 as [ψ__out' [a2 [τ2 [t2 [θ2 [Inf2 INST2]]]]]].
+
+     assert (ADM__SS : exists ψ__out σ__out t__out, ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t__out ▸ ⟨[]⟩ S__T T__Unit⦈).
+       admit. destruct ADM__SS as [ψ__out [σ__out [t__out ADM__SS]]]. rewrite ADM__SS in *. clear ψ__out' ADM__SS.
+
+     exists. splits. econstructor. eassumption. intros ty NIL__ty y NIL__y.
+       asserts_rewrite (ty = tx) in *. admit.
+       asserts_rewrite (y = x) in *. admit.
+       applys_eq Inf2. eapply close_Tm_wrt_Tm_inj. rewrite close_Tm_wrt_Tm_open_Tm_wrt_Tm. reflexivity.
+       eassumption.
+
+       applys_eq EInst__O. f_equal. dist. f_equal.
+
+
+
+
+(*** Attempt with ::a [] *)
+Module Type CompleteRelArgs.
+  Parameter R : E -> E -> Prop.
+  #[export] Hint Unfold R : core.
+
+  Parameter R__obj : forall ψ1 ψ2 t σ,
+      R ψ1 ψ2
+    -> R ψ1 (ψ2 ::o ⦇t ▸ ⟨[]⟩ σ⦈).
+End CompleteRelArgs.
+
+Module Complete (Import Args : CompleteRelArgs).
+  Theorem Inf_complete_open : forall ψ__dec e τ__dec t__dec,
+      ψ__dec |=d e ▸ τ__dec ⤳ t__dec
+    -> exists L, forall L' ψ__in ψ__dec,
+      R ψ__dec ψ__dec
+    -> L' |=e' ψ__in ::a [] ⤳ ψ__dec
+    -> L ⊆ L'
+    -> exists ψ__out a__alg τ__alg t__alg θ (* θ__alg *),
+        ψ__in |= e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg =| ψ__out
+      /\ {L', •, []} |=e ψ__out ::a [] ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__alg ▸ ⟨[]⟩ S__T τ__alg⦈, θ}.
+      (* /\ Sub_to_A θ__alg = a__alg *)
+      (* /\ ⟦θ__alg ++ θ ▹ τ__alg⟧ = τ__dec *)
+      (* /\ ⟦θ__alg ++ θ ▹ t__alg⟧ = t__dec. *)
+  Proof.
+    introv DEC. induction DEC; intros.
+
+    - admit.
+
+    - exists empty. introv [θ INST] _. exists ψ__in. exists. splits. constructor. tauto.
+      applys_eq EInst__O. simpl+. reflexivity. eassumption. admit. auto.
+
+    - admit.
+
+    - destruct IHDEC1 as [L1 IHDEC1]. destruct IHDEC2 as [L2 IHDEC2]. exists. introv [θ INST] SUB.
+      rename τ1 into τ__dec1. rename τ2 into τ__dec2.
+      rename t1 into t__dec1. rename t2 into t__dec2.
+
+      forwards [ψ1 [a1 [τ [t1 [θ1 [Inf1 Inst1]]]]]]: IHDEC1. eassumption. exists. eassumption. extend_in SUB.
+        (* inv_EInst'. *)
+
+onAllHyps move_up_types. simpl+ in *.

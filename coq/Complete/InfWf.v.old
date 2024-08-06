@@ -1,0 +1,19 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.ELookup.
+Require Import Defs.Freevars.
+Require Import Defs.Inst.
+Require Import Defs.Shape.
+Require Import Defs.Unification.
+Require Import Defs.WfE.
+
+Require Import Defs.Inf.
+
+(*** Names *)
+Lemma Inf_names_Tm : forall ψ__in e a τ t ψ__out,
+    ψ__in ⊢ e ▸ ⟨a⟩ τ ⤳ t ⊣ ψ__out
+  -> fv__x(t) ⊆ E_names ψ__out.
+Abort.

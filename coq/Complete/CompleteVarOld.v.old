@@ -1,0 +1,284 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+
+Require Import Defs.EInst.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+Require Import Defs.List.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.SubSump.
+Require Import Defs.TmTy.
+
+Require Import LibHyps.LibHyps.
+
+Notation  "a ### ψ"  := (FrA a ψ) (at level 50, format "a  ###  ψ") : type_scope.
+
+
+Require Import Complete.PrincipalTyping.
+
+Axiom FundamentalProperty : forall ψ t σ,
+    ψ  ⊢t t ▸ σ
+  -> ψ  ⊢t≈ t ≈ t ▸ σ.
+Axiom CompatTLam : forall L ψ t t' σ,
+    (forall α, α ∉ L -> ψ ::a [α] ⊢t≈ (open_Tm_wrt_T t (T__Var_f α)) ≈ (open_Tm_wrt_T t' (T__Var_f α)) ▸ open_Sc_wrt_T σ (T__Var_f α))
+  -> ψ ⊢t≈ t__TLam t ≈ t__TLam t' ▸ S__Forall σ.
+Axiom CompatTApp : forall ψ t t' σ τ,
+    ψ ⊢t≈ t ≈ t' ▸ S__Forall σ
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__TApp t τ ≈ t__TApp t' τ ▸ open_Sc_wrt_T σ τ.
+
+(*** Lemmas *)
+(** var *)
+Lemma EInst_lookup : forall ψ ψ__dec θ x σ__dec,
+    {∅, •, []} ⊢e ψ ⤳ {ψ__dec, θ}
+  -> E_lookup ψ__dec x = Some σ__dec
+  -> exists σ, E_lookup ψ x = Some σ
+       /\ ⟦θ ▹ σ⟧ = σ__dec.
+Admitted.
+
+(* Definition apply_t_list : Tm -> list T -> Tm := fold_right (fun (τ:T) (t:Tm) => t__TApp t τ). *)
+Definition apply_t_list' : Tm -> list T -> Tm := fun t τs => fold_left (fun (t:Tm) (τ:T) => t__TApp t τ) τs t.
+Lemma apply_t_list'_app : forall τs1 τs2 t,
+    apply_t_list' t (τs1 ++ τs2) = apply_t_list' (apply_t_list' t τs1) τs2.
+Proof. induction τs1; crush. Qed.
+#[local] Hint Rewrite apply_t_list'_app : core.
+
+Definition apply_A : Tm -> A -> Tm := fun t a => fold_left (fun (t:Tm) (α:skvar) => t__TApp t (T__Var_f α)) a t.
+
+Lemma apply_A'_app : forall a1 a2 t,
+    apply_A t (a1 ++ a2) = apply_A (apply_A t a1) a2.
+Proof. intro a1. induction a1; crush. Qed.
+#[local] Hint Rewrite apply_A'_app : core.
+
+Inductive SubSumpTmA : E -> Tm -> Sc -> Tm -> A -> T -> Prop :=    (* defn SubSumpTm *)
+ | SSTA__M : forall (ψ:E) (t:Tm) (τ:T) (a:A)
+     (FR : FrA a (E_skvars ψ)),
+     SubSumpTmA ψ t (S__T τ) t a τ
+ | SSTA__L : forall (a1 a2:A) (ψ:E) (t:Tm) (σ:Sc) (t':Tm) (τ1 τ2:T)
+     (FR: FrA a1 (E_skvars ψ))
+     (WFT: WfT (ψ ::a a1) τ1)
+     (SS:  SubSumpTmA (ψ ::a a1) (t__TApp t τ1)  (open_Sc_wrt_T σ τ1) t' a2 τ2),
+     (* (SS:  SubSumpTmA (ψ ::a a1) (open_Tm_wrt_T t τ1)  (open_Sc_wrt_T σ τ1) t' a2 τ2), *)
+     SubSumpTmA ψ t (S__Forall σ) t' (a1 ++ a2) τ2.
+#[export] Hint Constructors SubSumpTmA : core.
+
+Definition PrincipalSubSumptionA (ψ:E) (t1:Tm) (σ:Sc) (t2__p:Tm) (a__p:A) (τ__p:T) :=
+    SubSumpTmA ψ t1 σ t2__p a__p τ__p
+  /\ forall t2__np a__np τ__np,
+    SubSumpTmA ψ t1 σ t2__np a__np τ__np
+  -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t2__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a__np ⬪ (S__T τ__np))
+        /\ ψ ⊢t≈ t' ≈ (Λ a__p ⬪ t2__p) ▸ (∀ a__np ⬪ (S__T τ__np)).
+(* Definition PrincipalSubSumptionA (ψ:E) (t1:Tm) (σ:Sc) (t2__p:Tm) (a__p:A) (τ__p:T) := *)
+(*     SubSumpTmA ψ t1 σ t2__p a__p τ__p *)
+(*   /\ forall t1' t2 a τ, *)
+(*     SubSumpTm ψ t1' σ t2__p τ__p *)
+(*   -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t2__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a ⬪ (S__T τ)) *)
+(*         /\ ψ ⊢t≈ t' ≈ (Λ a ⬪ t2) ▸ (∀ a ⬪ (S__T τ)). *)
+
+(* Definition open_T_wrt_A := fold_right (flip open_T_wrt_T). *)
+
+#[derive(equations=no)] Equations open_Sc_wrt_τs : Sc -> list T -> option T :=
+  open_Sc_wrt_τs (S__T τ) [] := Some τ;
+  open_Sc_wrt_τs (S__Forall σ) (τ :: τs) := open_Sc_wrt_τs (open_Sc_wrt_T σ τ) τs;
+  open_Sc_wrt_τs _ _ := None.
+
+#[derive(equations=no)] Equations open_Sc_wrt_A : Sc -> A -> option T :=
+  open_Sc_wrt_A (S__T τ) [] := Some τ;
+  open_Sc_wrt_A (S__Forall σ) (α :: a) := open_Sc_wrt_A (open_Sc_wrt_T σ (T__Var_f α)) a;
+  open_Sc_wrt_A _ _ := None.
+
+#[derive(equations=no)] Equations open_Sc_wrt_A' : Sc -> A -> option Sc :=
+  open_Sc_wrt_A' σ [] := Some σ;
+  open_Sc_wrt_A' (S__Forall σ) (α :: a) := open_Sc_wrt_A' (open_Sc_wrt_T σ (T__Var_f α)) a;
+  (* open_Sc_wrt_A' (S__Forall σ) (α :: a) := option_map (fun σ =>  open_Sc_wrt_T σ (T__Var_f α)) (open_Sc_wrt_A' σ a); *)
+  open_Sc_wrt_A' _ _ := None.
+
+Definition bind {A B : Type} (a : option A) (f : A -> option B) : option B :=
+  match a with
+    | Some x => f x
+    | None => None
+  end.
+Notation "A >>= F" := (bind A F) (at level 42, left associativity).
+
+(* Definition open_T_wrt_A := fold_right (flip open_T_wrt_T). *)
+
+Lemma open_Sc_wrt_A_app : forall a1 a2 σ,
+    open_Sc_wrt_A σ (a1 ++ a2) = (open_Sc_wrt_A' σ a1) >>= (fun σ' => open_Sc_wrt_A σ' a2).
+Proof. induction a1; introv; destruct σ; simpl+; crush. Qed.
+#[local] Hint Rewrite open_Sc_wrt_A_app : core.
+
+
+Lemma FrA_singleton : forall α L,
+    α ∉ L
+  -> [α] ### L.
+Proof. intros. unfolds. split. auto. simpl+. fsetdec. Qed.
+
+Lemma SubSump_reversible : forall σ ψ t L,
+    exists a τ, FrA a L
+         /\ open_Sc_wrt_A σ a = Some τ
+         /\ SubSumpTmA ψ t σ (apply_A t a) a τ.
+Proof.
+  intro σ. forall_ind σ.
+  - introv. exists ([]:A). exists τ. crush.
+  - introv. forwards [α NIL__α]: atom_fresh (L ∪ E_skvars ψ).
+    specializes IHn (open_Sc_wrt_T σ__Forall (T__Var_f α)) (L ∪ {{α}}). simpl+. crush.
+      destruct IHn as [a [τ [FR [OP SS]]]].
+    exists (α :: a). exists. splits.
+    + eapply FrA_shift'. eassumption. fsetdec.
+    + simpl+. crush.
+    + norm. applys SSTA__L (T__Var_f α). apply FrA_singleton. fsetdec.
+      unfolds. splits. crush. erel_fsetdec. simpl+. eassumption.
+Qed.
+
+Lemma apply_A_close_Tm_wrt_A_equiv : forall a ψ t σ,
+    ψ ⊢t t ▸ σ
+  -> ψ ⊢t≈ t ≈ close_Tm_wrt_A (apply_A t a) a ▸ σ.
+Admitted.
+
+Lemma close_Sc_wrt_A_open_Sc_wrt_A_eq : forall a σ τ,
+    open_Sc_wrt_A σ a = Some τ
+  -> (∀ a ⬪ (S__T τ)) = σ.
+Admitted.
+
+Lemma SubSumpTmA_np : forall ψ t1 σ t2__np a__np τ__np,
+    SubSumpTmA ψ t1 σ t2__np a__np τ__np
+  -> exists τs, t2__np = apply_t_list' t1 τs
+        /\ open_Sc_wrt_τs σ τs = Some τ__np
+        /\ length τs = foralls σ.
+Proof.
+  introv SS. induction SS. exists ([]: list T). simpl+. crush.
+  destruct IHSS as [τs [EQ__t EQ__τ]]. exists (τ1 :: τs). simpl+. split; crush.
+Qed.
+
+Fact foralls_close_Sc_wrt_T_rec : forall σ α n,
+  foralls (close_Sc_wrt_T_rec n α σ) = foralls σ.
+Proof. intro σ. induction σ; crush. Qed.
+#[export] Hint Rewrite foralls_close_Sc_wrt_T_rec : core.
+Fact foralls_close_Sc_wrt_T : forall σ α,
+  foralls (close_Sc_wrt_T α σ) = foralls σ.
+Proof. intros. unfold close_Sc_wrt_T. simpl+. crush. Qed.
+#[export] Hint Rewrite foralls_close_Sc_wrt_T : core.
+
+Lemma close_Sc_wrt_A_foralls : forall a τ,
+    foralls (∀ a ⬪ S__T τ) = length a.
+Proof. intro a. ind_a a; introv; crush. Qed.
+
+Corollary SubSumpTmA_np' : forall ψ t1 a τ t2__np a__np τ__np,
+    SubSumpTmA ψ t1 (∀ a ⬪ S__T τ) t2__np a__np τ__np
+  -> exists τs, t2__np = apply_t_list' t1 τs
+        /\ open_Sc_wrt_τs (∀ a ⬪ S__T τ) τs = Some τ__np
+        /\ length τs = length a.
+Proof.
+  intros. forwards [τs [EQ1 [EQ2 EQ3]]]: SubSumpTmA_np. eassumption.
+  rewrite close_Sc_wrt_A_foralls in EQ3.
+  exists τs. crush.
+Qed.
+
+Lemma Complete_SubSumpTm_helper__SS : forall (a__p : A) (ψ : E) (t1 : Tm) (τ__p : T) (τ__np : T) (τs : list T),
+    open_Sc_wrt_τs (∀ a__p ⬪ S__T τ__p) τs = Some τ__np
+  -> length τs = length a__p
+  -> SubSumpTm ψ (Λ a__p ⬪ apply_A t1 a__p) (∀ a__p ⬪ S__T τ__p) (apply_t_list' t1 τs) τ__np.
+Proof.
+  intro a__p. induction a__p as [|α__p a__p]; introv EQ__τ EQ__len.
+  - simpl+. destruct τs; simpl+ in EQ__len; inverts EQ__len. simpl+. crush.
+  - simpl+. destruct τs as [|τ τs]; simpl+ in EQ__len; inverts EQ__len.
+    assert (ψ ⊢wfτ τ). admit.
+    econstructor. eassumption. simpl+. fold apply_t_list'.
+    simpl+ in EQ__τ. rewrite <- subst_skvar_Sc_spec in EQ__τ. rewrite subst_skvar_Sc_close_Sc_wrt_A in EQ__τ. 2:eauto. 2,3:admit.
+
+    specializes IHa__p. eassumption. eassumption. inverts IHa__p.
+
+    applys_eq SS.
+
+Lemma Complete_SubSumpTm'_helper__SS : forall  (a__np : A) (a__p : A) (ψ : E) (t1 : Tm) (τ__p : T) (τ__np : T) (τs : list T),
+    open_Sc_wrt_τs (∀ a__p ⬪ S__T τ__p) τs = Some τ__np
+  -> length τs = length a__p
+  -> SubSumpTm' ψ (Λ a__p ⬪ apply_A t1 a__p) (∀ a__p ⬪ S__T τ__p) (Λ a__np ⬪ apply_t_list' t1 τs) (∀ a__np ⬪ S__T τ__np).
+Proof.
+  intro a__p. induction a__p as [|α__np a__np]; introv EQ__τ EQ__len.
+  - simpl+ in *. eauto using Complete_SubSumpTm_helper__SS.
+  - simpl+. applys SST'__R empty. intros α NIL__α.
+    rewrite <- subst_skvar_Tm_spec. rewrite <- subst_skvar_Sc_spec.
+    applys_eq SubSumpTm'_rename_skvar; try symmetry.
+    + instantiate (1 := ψ ::a [α__np]). simpl+. fequals. apply rename_skvar_E_notin. admit.
+    + apply subst_skvar_Tm_notin. admit.
+    + apply subst_skvar_Sc_notin. admit.
+    + eauto.
+Admitted.
+
+Lemma Complete_SubSump_helper: forall  (a__np : A)(ψ : E) (t1 : Tm) (a__p : A) (τ__p : T) (τ__np : T) (τs : list T),
+    SubSumpTm' ψ (Λ a__p ⬪ apply_A t1 a__p) (∀ a__p ⬪ S__T τ__p) (Λ a__np ⬪ apply_t_list' t1 τs) (∀ a__np ⬪ S__T τ__np)
+  /\ ψ ⊢t≈ Λ a__np ⬪ apply_t_list' t1 τs ≈ Λ a__p ⬪ apply_A t1 a__p ▸ (∀ a__np ⬪ S__T τ__np).
+Proof.
+  intro a__p. induction a__p as [|α__np a__np]. admit.
+  introv. splits.
+  - simpl+. applys SST'__R empty.
+    intros α NIL__α.
+    rewrite <- subst_skvar_Tm_spec. rewrite <- subst_skvar_Sc_spec.
+    applys_eq SubSumpTm'_rename_skvar; try symmetry.
+    + instantiate (1 := ψ ::a [α__np]). simpl+. fequals. apply rename_skvar_E_notin. admit.
+    + apply subst_skvar_Tm_notin. admit.
+    + apply subst_skvar_Sc_notin. admit.
+    + eapply IHa__np.
+  - simpl+.
+Abort.
+
+Lemma Complete_SubSump : forall σ ψ t1,
+    exists a__p τ__p, PrincipalSubSumptionA ψ t1 σ (apply_A t1 a__p) a__p τ__p.
+Proof.
+  intros. forwards [a__p [τ__p [FR [EQ SS__p]]]]: SubSump_reversible σ ψ t1 empty.
+  exists a__p τ__p. split. eassumption.
+  intros t__np a__np τ__np SS__np. apply close_Sc_wrt_A_open_Sc_wrt_A_eq in EQ. subst.
+  forwards [τs [EQ__t [EQ__τ EQ__len]]]: SubSumpTmA_np' SS__np. subst.
+  exists (close_Tm_wrt_A (apply_t_list' t1 τs) a__np). splits.
+  - auto using Complete_SubSump_helper__SS.
+
+
+
+
+
+Lemma Complete_SubSump : forall σ ψ t,
+    exists a__p τ__p, PrincipalSubSumptionA ψ t σ (apply_A t a__p) a__p τ__p.
+Proof.
+  intro σ. forall_ind σ; unfolds PrincipalSubSumptionA; introv. admit.
+  forwards [α NIL__α]: atom_fresh (E_skvars ψ).
+  specializes IHn (open_Sc_wrt_T σ__Forall (T__Var_f α)) (ψ ::a [α]).
+    simpl+. crush. destruct IHn as [a__p [τ__p [SSA PRIN]]].
+  exists (a__p ++ [α]). exists. splits.
+  - applys_eq (SSTA__L ([α])). constructor. auto. simpl+. fsetdec.
+    instantiate (1 := T__Var_f α). unfolds. simpl+. splits. crush. fsetdec.
+    applys_eq SSA. unfolds apply_A. crush.
+  - introv SSA__np. inverts SSA__np. specializes PRIN SS.
+
+
+
+
+Definition PrincipalSubSumption (ψ:E) (t1:Tm) (σ:Sc) (t2__p:Tm) (τ__p:T) :=
+    SubSumpTm ψ t1 σ t2__p τ__p
+  /\ forall t2 τ,
+    SubSumpTm ψ t1 σ t2__p τ__p
+  -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a ⬪ (S__T τ))
+        /\ ψ ⊢t≈ t' ≈ (Λ a ⬪ t) ▸ (∀ a ⬪ (S__T τ)).
+
+Definition PrincipalTyping (ψ:E) (e:Ex) (a__p:A) (τ__p:T) (t__p:Tm) :=
+    ψ ⊢d' e ▸ ⟨a__p⟩ τ__p ⤳ t__p
+  /\ forall a τ t,
+    ψ ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a ⬪ (S__T τ))
+        /\ ψ ⊢t≈ t' ≈ (Λ a ⬪ t) ▸ (∀ a ⬪ (S__T τ)).
+
+Lemma Complete_SubSump : forall σ L ψ t,
+    exists a__p τ__p,
+      FrA a__p L
+    /\ SubSumpTm (ψ ::a a__p) t σ (apply_A t a__p) τ__p
+    /\ forall a__np t__np τ__np,
+      SubSumpTm (ψ ::a a__np) t σ t__np τ__np
+    -> exists t__np',
+      SubSumpTm' ψ (Λ a__p ⬪ apply_A t a__p) (∀ a__p ⬪ S__T τ__p) t__np' (∀ a__np ⬪ S__T τ__np)
+    /\ ψ ⊢t≈ t__np' ≈ Λ a__np ⬪ t__np ▸ (∀ a__np ⬪ S__T τ__np).
+Proof.

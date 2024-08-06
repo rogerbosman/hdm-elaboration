@@ -1,0 +1,64 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+
+Require Import Defs.Lc.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.gamma.
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.Opsem.
+Require Import Semantics.rhoDef.
+
+(*** App *)
+Lemma CompatApp : forall ψ t1 t1' t2 t2' τ' τ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ S__T (T__Fun τ' τ)
+  -> ψ ⊢t≈ t1' ≈ t2' ▸ S__T τ'
+  -> ψ ⊢t≈ t__App t1 t1' ≈ t__App t2 t2' ▸ S__T τ.
+Proof.
+  introv IH1 IH2. unfolds. splits.
+  - econstructor. unfolds in IH1. jauto. unfolds in IH2. jauto.
+  - econstructor. unfolds in IH1. jauto. unfolds in IH2. jauto.
+  - introv IN. destruct IH1 as [TmTy1 [TmTy2 IH1]]. destruct IH2 as [TmTy1' [TmTy2' IH2]].
+    specializes IH1. eassumption. specializes IH2. eassumption.
+    unfolds. splits.
+    + simpl+. econstructor.
+      * forwards TMTY: props_logrel_exp1. apply IH1. simpl+ in TMTY. jauto.
+      * forwards TMTY: props_logrel_exp1. apply IH2. simpl+ in TMTY. jauto.
+    + simpl+. econstructor.
+      * forwards TMTY: props_logrel_exp2. apply IH1. simpl+ in TMTY. jauto.
+      * forwards TMTY: props_logrel_exp2. apply IH2. simpl+ in TMTY. jauto.
+    + unfold logrel_exp in IH1. destruct IH1 as [ClTmTy1  [ClTmTy2  [v1  [v2  [OP1  [OP2  REL ]]]]]].
+      unfold logrel_exp in IH2. destruct IH2 as [ClTmTy1' [ClTmTy2' [v1' [v2' [OP1' [OP2' REL']]]]]].
+      simp' in REL. destruct REL as [[VAL1 [VAL2 [TmTyV1 TmTyV2]]] [t__arg1 [t__arg2 [EQ1 [EQ2 H]]]]]. subst.
+      specializes H v1' v2'. specializes H. apply REL'.
+      destruct H as [TmTyOp1 [TmTyOp2 [v1'' [v2'' [OP1'' [OP2'' REL'']]]]]].
+      exists v1'' v2''. splits.
+      * etransitivity. 2:eassumption.
+        rewrite t_cl_opsem_t_cl_rev_opsem. econstructor. apply t_ss__App. eauto. rewrite <- t_cl_opsem_t_cl_rev_opsem.
+        remember ⟦π1 ρ ▹ ⟦π1 γ ▹__x t1⟧⟧ as t1__p.
+        remember ⟦π1 ρ ▹ ⟦π1 γ ▹__x t1'⟧⟧ as t1'__p.
+        asserts_rewrite (⟦π1 ρ ▹ ⟦π1 γ ▹__x t__App t1 t1'⟧⟧ = t__App t1__p t1'__p). simpl+. crush.
+        etransitivity.
+        -- eapply t_ss__EC_refl_trans in OP1. applys_eq OP1. auto using make_EC_t__AppL.
+        -- rewrite make_EC_t__AppL.
+            assert (iv: is_val (t__Lam ⟦π1 ρ ▹ τ'⟧ t__arg1)). crush.
+            forwards FILL: make_EC_t__AppR (t__Lam ⟦π1 ρ ▹ τ'⟧ t__arg1) iv. rewrite <- FILL.
+            eapply t_ss__EC_refl_trans in OP1'. applys_eq OP1'.
+      * etransitivity. 2:eassumption.
+        rewrite t_cl_opsem_t_cl_rev_opsem. econstructor. apply t_ss__App. eauto. rewrite <- t_cl_opsem_t_cl_rev_opsem.
+        remember ⟦π2 ρ ▹ ⟦π2 γ ▹__x t2⟧⟧ as t2__p.
+        remember ⟦π2 ρ ▹ ⟦π2 γ ▹__x t2'⟧⟧ as t2'__p.
+        asserts_rewrite (⟦π2 ρ ▹ ⟦π2 γ ▹__x t__App t2 t2'⟧⟧ = t__App t2__p t2'__p). simpl+. crush.
+        etransitivity.
+        -- eapply t_ss__EC_refl_trans in OP2. applys_eq OP2. auto using make_EC_t__AppL.
+        -- rewrite make_EC_t__AppL.
+            assert (iv: is_val (t__Lam ⟦π2 ρ ▹ τ'⟧ t__arg2)). crush.
+            forwards FILL: make_EC_t__AppR (t__Lam ⟦π2 ρ ▹ τ'⟧ t__arg2) iv. rewrite <- FILL.
+            eapply t_ss__EC_refl_trans in OP2'. applys_eq OP2'.
+      * eauto.
+Qed.

@@ -1,0 +1,17 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+
+Require Import Defs.List.
+Require Import Defs.Subst.
+
+Definition apply_A_left : Tm -> A -> Tm := fun t a => fold_left (fun (t:Tm) (α:skvar) => t__TApp t (T__Var_f α)) a t.
+
+Lemma apply_A_left_cons : forall t α a,
+    apply_A_left t (α :: a) = apply_A_left (t__TApp t (T__Var_f α)) a.
+Proof. intros. norm. unfold apply_A_left. rewrite fold_left_app. simpl+. reflexivity. Qed.
+#[export] Hint Rewrite apply_A_left_cons : left.
+
+Lemma subst_skvar_Tm_apply_A_left : forall a α__out α__in t,
+    {T__Var_f α__in ≔ α__out}apply_A_left t a = apply_A_left ({T__Var_f α__in ≔ α__out}t) ({α__in ↤ α__out}a).
+Proof. intro a. ind_a a. crush. intros. autorewrite with left. rewrite IHa. simpl+. unfold rename_var. reflexivity. Qed.

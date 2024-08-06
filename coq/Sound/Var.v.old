@@ -1,0 +1,7 @@
+Set Warnings "-notation-overridden".
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.EInst.
+Require Import Defs.Inf.
+Require Import Defs.Lc.

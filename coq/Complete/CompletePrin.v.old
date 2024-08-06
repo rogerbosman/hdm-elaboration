@@ -1,0 +1,201 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import LibHyps.LibHyps.
+
+Require Import Defs.E.
+Require Import Defs.EInst.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+Require Import Defs.List.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.TmTy.
+
+Require Import Complete.PrincipalTyping.
+Require Import Complete.CompleteSS.
+Require Import Complete.CompleteInst.
+Require Import Complete.CompleteUnit.
+Require Import Complete.CompleteLet.
+
+Require Import Semantics.FundPropAdmit.
+
+(*** Lemmas *)
+(** general *)
+Lemma EInst_cons_nil : forall L ψ1 ψ2 a,
+    L ⊢e' ψ1 ⤳ ψ2
+  -> FrA a (L ∪ E_skvars ψ2)
+  -> L ⊢e' ψ1 ::a [] ⤳ ψ2 ::a a.
+Proof. introv [θ INST] FR. exists. econstructor. eassumption. assumption. crush. Qed.
+
+(** var *)
+Lemma EInst_lookup : forall ψ ψ__dec θ x σ__dec,
+    {∅, •, []} ⊢e ψ ⤳ {ψ__dec, θ}
+  -> E_lookup ψ__dec x = Some σ__dec
+  -> exists σ, E_lookup ψ x = Some σ
+       /\ ⟦θ ▹ σ⟧ = σ__dec.
+Admitted.
+
+(** app *)
+Theorem make_unification : forall θ τ1 τ2 ψ__in ψ__dec,
+    ⟦θ ▹ τ1⟧ = ⟦θ ▹ τ2⟧
+  -> ∅ ⊢e' ψ__in ⤳ ψ__dec
+  -> exists ψ__out,
+      U ψ__in τ1 τ2 ψ__out
+    /\ ∅ ⊢e' ψ__out ⤳ ψ__dec.
+Abort.
+
+Theorem Uni_mainains_instantiation : forall ψ__in τ1 τ2 ψ__out ψ__dec,
+      U ψ__in τ1 τ2 ψ__out
+    -> ∅ ⊢e' ψ__in ⤳ ψ__dec
+    -> ∅ ⊢e' ψ__out ⤳ ψ__dec.
+Admitted.
+
+(*** Def *)
+Definition PrincipalTyping (ψ:E) (e:Ex) (a__p:A) (τ__p:T) (t__p:Tm) :=
+    ψ ⊢d' e ▸ ⟨a__p⟩ τ__p ⤳ t__p
+  /\ forall a τ t,
+    ψ ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> exists t', SubSumpTm' ψ (Λ a__p ⬪ t__p) (∀ a__p ⬪ (S__T τ__p)) t' (∀ a ⬪ (S__T τ))
+        /\ ψ ⊢t≈ t' ≈ (Λ a ⬪ t) ▸ (∀ a ⬪ (S__T τ)).
+
+
+(*** Thm *)
+Theorem Inf_complete_open : forall e ψ__dec,
+    Typable ψ__dec e
+  -> forall ψ__in,
+    ∅ ⊢e' ψ__in ⤳ ψ__dec
+  -> exists a__p τ__p t__p ψ__out a__alg τ__alg t__alg,
+      PrincipalTyping ψ__dec e a__p τ__p t__p
+    /\ ψ__in ⊢ e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg ⊣ ψ__out
+    /\ ∅ ⊢e' ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ ψ__dec ::o ⦇t__p ▸ ⟨a__p⟩ S__T τ__p⦈.
+Proof.
+  introv TYP. forwards E: Typable_lc TYP. gen ψ__dec TYP. induction E.
+  all:introv [a__typ [τ__typ [t__typ DECA]]] [θ INST]; inverts DECA.
+  (** var *)
+  - rename σ into σ__dec. rename IN into IN__dec. rename SS into SS__typ. rename ψ__in into ψ.
+    forwards [σ [IN SA]]: EInst_lookup INST IN__dec.
+    forwards [a__p [τ__p [FR [EQ__len [EQ__τ [SS__p PRIN]]]]]]: Complete_SubSump σ__dec ψ__dec (t__Var_f x) (E_skvars ψ__dec).
+    forwards [a [τ [θ__a [INS [INST__a [SA__τ REN]]]]]]: Complete_Inst σ x (E_A_skvars ψ) ψ__dec SA. eassumption.
+      erewrite <- Sub_app_Sc_foralls. rewrite EQ__len. rewrite SA. crush.
+    exists a__p τ__p. exists. splits.
+    + unfolds. splits. econstructor. eassumption. eapply SS__p. eassumption.
+      intros a__np τ__np t__np DEC__np. inverts DEC__np. rewrite IN0 in IN__dec. inverts IN__dec.
+      specializes PRIN SS. eassumption.
+    + econstructor. eassumption. eassumption.
+    + clear - INST FR INST__a SA__τ REN.
+      exists. applys_eq EInst__O. 2:eapply INST. 2:applys FrA_L_sub FR; erel_fsetdec.
+      2:applys_eq INST__a. 2:admit. simpl+. fequals. dist.
+      rewrite (Sub_app_Tm_notindom θ). 2:admit.
+      rewrite Sub_app_Tm_apply_A_left. simpl+. fequals.
+
+  (** unit *)
+  - exists. splits.
+    + unfolds. splits. econstructor. apply FrA_nil. introv DEC. inverts DEC.
+      exists (Λ a ⬪ t__Unit). splits. simpl+. eauto using complete_unit_SubSump.
+      eauto using FundamentalProperty, complete_unit_TmTy.
+    + econstructor.
+    + exists. applys_eq EInst__O. 2:eassumption. 2:apply FrA_nil. 2:auto. simpl+. crush.
+
+  (** app *)
+  - clear E1 E2. rename IHE1 into IH__e1. rename IHE2 into IH__e2. rename DEC1 into DEC__e1. rename DEC2 into DEC__e2.
+    rename τ1 into τ__typ1. rename τ__typ into τ__typ2. rename t1 into t__typ1. rename t2 into t__typ2.
+    rename a1 into a__typ1. rename a2 into a__typ2. rename INST into INST__in. onAllHyps move_up_types.
+    (**)
+    specializes IH__e1. exists. eassumption. exists. eassumption.
+      destruct IH__e1 as [a__p1 [τ__p [t__p1 [ψ1 [a1 [τ [t1 [PRIN1 [INF__e1 INST1]]]]]]]]].
+      clear INST__in DEC__e1. inv_EInst'. simpl+ in *. onAllHyps move_up_types.
+    (**)
+    forwards [a__typ2' [τ__typ2' [t__typ2' DEC__e2']]]: DecA_weaken_app (<⦇⟦θ3 ++ θ0 ▹ t1⟧ ▸ ⟨a__p1⟩ S__T ⟦θ3 ++ θ0 ▹ τ⟧⦈>o). eapply DEC__e2.
+    specializes IH__e2. exists. applys DEC__e2'. exists. applys_eq EInst__O. 2:eassumption. simpl+. fequals.
+      instantiate (1 := S__T τ). simpl+. crush. FrA_L_sub. simpl+. eassumption.
+      destruct IH__e2 as [a__p2 [τ__p1 [t__p2 [ψ2' [a2 [τ1 [t2 [PRIN2 [INF__e2 INST2]]]]]]]]].
+      assert (ADM: exists ψ2 t1' a1' τ', ψ2' = ψ2 ::o ⦇t1' ▸ ⟨a1'⟩ S__T τ'⦈). admit.
+        destruct ADM as [ψ2 [t1' [a1' [τ' EQ]]]]. subst.
+      clear DEC__e2 DEC__e2' EINST.
+      inv_EInst'. simpl+ in *. onAllHyps move_up_types.
+    (**)
+    assert (DEC__e1': exists a__p1' τ__p2 t__p1', ψ__dec ⊢d' e1 ▸ ⟨a__p1'⟩ (T__Fun ⟦θ4 ++ θ1 ▹ τ1⟧ τ__p2) ⤳ t__p1'). admit.
+      unfolds in PRIN1.
+      destruct DEC__e1' as [a__p1' [τ__p2 [t__p1' DEC__e1']]].
+      forwards [t' [SS1 EQ1]]: (proj2 PRIN1) DEC__e1'.
+    (**)
+    forwards [α NIL__α]: atom_fresh (E_skvars (ψ2 ::a (a2 ++ a1'))).
+    assert (UNI: exists ψ__out a__out τ__out t__out,
+               U ((ψ2 ::a (α :: a2) ++ a1') ::o ⦇t__App t1' t2 ▸ ⟨[]⟩ S__T (T__Var_f α)⦈) τ' (T__Fun τ1 (T__Var_f α)) ((ψ__out ::a a__out) ::o ⦇t__out ▸ ⟨[]⟩ S__T τ__out⦈)).
+      admit. destruct UNI as [ψ__out [a__out [τ__out [t__out UNI]]]].
+    (**)
+    exists (a__p2 ++ a__p1') τ__p2 (t__App t__p1' ⟦θ4 ++ θ1 ▹ t2⟧). exists ψ__out a__out τ__out t__out. splits.
+    + unfolds. splits. econstructor. eassumption. destruct PRIN2 as [PRIN2 _]. applys_eq PRIN2. admit.
+      intros. admit.
+    + econstructor. eassumption. eassumption. eassumption. eassumption.
+    + forwards: Uni_mainains_instantiation. eassumption.
+        exists. applys_eq EInst__O. applys_eq EInst__A. eassumption. admit.
+        simpl+. applys_eq AInst_merge. norm. reflexivity. applys_eq AInst_merge.
+        instantiate (2 := (a__p2 ++ a__p1)). applys_eq AINST1. admit. applys_eq AINST0. admit.
+        econstructor. auto. admit. admit. admit. admit.
+
+  (** abs *)
+  - clear H. rename H0 into IH. rename τ1 into τ__p1. rename τ2 into τ__typ2. rename t0 into t__typ.
+    rename a1 into a__p1. rename a2 into a__typ2. rename INST into INST__in.
+    (**)
+    forwards [x NIL__x]: atom_fresh L.
+    forwards [α NIL__α]: atom_fresh (L ∪ dom_Sub θ).
+    specializes DEC x. specializes DEC. fsetdec.
+    specializes IH. unfolds. eauto. exists. instantiate (2 := ψ__in ::a [α] ::x x :- S__T (T__Var_f α)).
+      applys_eq EInst__S. 2:applys_eq EInst__A. 2:eassumption. instantiate (1 := [(τ__p1, α)]). simpl+. fequals. fequals.
+      dist. rewrite Sub_app_T_notindom. 2:simpl+; fsetdec. simpl+. if_taut. FrA_L_sub.
+      econstructor. auto. admit.
+      destruct IH as [a__p2 [τ__p2 [t__p [ψ__out' [a2 [τ2 [t [PRIN [INF INST__out]]]]]]]]].
+      assert (ADM: exists ψ__out a1 τ1, ψ__out' = ψ__out ::a a1 ::x x :- S__T τ1). admit.
+      destruct ADM as [ψ__out [a1 [τ1 EQ]]]. subst.
+    (**)
+    exists (a__p2 ++ a__p1) (T__Fun τ__p1 τ__p2) (t__Lam τ__p1 (close_Tm_wrt_Tm x t__p)). exists ψ__out (a2 ++ a1) (T__Fun τ1 τ2) (t__Lam τ1 t).
+    splits.
+    + destruct PRIN as [DEC__p PRIN].
+      unfolds. split. econstructor. eassumption.
+      intros y NIL__y. asserts_rewrite (y = x) in *. admit. rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. crush. eassumption.
+      intros a__np τ__np t__np DEC__np. inverts DEC__np.
+      forwards [z NIL__z]: atom_fresh L0. specializes DEC0 z. specializes DEC0. fsetdec.
+      admit.
+
+
+  (** let *)
+  - clear E H. rename IHE into IH__e1. rename H0 into IH__e2. rename DEC1 into DEC__e1. rename DEC2 into DEC__e2.
+    rename τ1 into τ__typ1. rename τ__typ into τ__typ2. rename t1 into t__typ1. rename t2 into t__typ2.
+    rename a1 into a__typ1. rename a__typ into a__typ2. rename INST into INST__in. onAllHyps move_up_types.
+    (** IH e1 *)
+    specializes IH__e1. exists. eassumption. exists. eassumption.
+      destruct IH__e1 as [a__p1 [τ__p1 [t__p1 [ψ1 [a1 [τ1 [t1 [PRIN1 [INF__e1 INST1]]]]]]]]].
+      clear INST__in. onAllHyps move_up_types.
+    (** IH e1*)
+    forwards [x NIL__x]: atom_fresh L. specializes DEC__e2 x. specializes DEC__e2. fsetdec.
+    assert (TYP__e2: Typable (ψ__dec ::x x :- (∀ a__p1 ⬪ S__T τ__p1) ::o ⦇Λ a__p1 ⬪ t__p1 ▸ ⟨[]⟩ S__T T__Unit⦈) (open_Ex_wrt_Ex e2 (e__Var_f x))).
+      forwards [a' [τ' [t' DEC__e2']]]: DecA_generalize_binding (∀ a__p1 ⬪ S__T τ__p1) DEC__e2.
+      destruct PRIN1 as [_ H]. specializes H DEC__e1. destruct H as [t' [SST _]].
+      eapply SubSumpTm'_SubSump. eassumption.
+      forwards [a'' [τ'' [t'' DEC__e2'']]]: DecA_weaken_app  (<⦇Λ a__p1 ⬪ t__p1 ▸ ⟨[]⟩ S__T T__Unit⦈>o). eassumption.
+      unfolds. exists. applys_eq DEC__e2''.
+    assert (INST1': (∅) ⊢e' ψ1 ::x x :- (∀ a1 ⬪ S__T τ1) ::o ⦇Λ a1 ⬪ t1 ▸ ⟨[]⟩ S__T T__Unit⦈
+                      ⤳ ψ__dec ::x x :- (∀ a__p1 ⬪ S__T τ__p1) ::o ⦇Λ a__p1 ⬪ t__p1 ▸ ⟨[]⟩ S__T T__Unit⦈). admit.
+    (**)
+    specializes IH__e2 TYP__e2 INST1'.
+      destruct IH__e2 as [a__p2 [τ__p2 [t__p2 [ψ__out' [a2 [τ2 [t2 [PRIN2 [INF__e2 INST__out]]]]]]]]].
+      assert (ADM: exists ψ__out σ__out t1', ψ__out' = ψ__out ::x x :- σ__out ::o ⦇t1' ▸ ⟨[]⟩ S__T T__Unit⦈).
+      admit. destruct ADM as [ψ__out [σ__out [t1' EQ]]]. subst.
+      clear INST1 INST1' DEC__e1 DEC__e2. onAllHyps move_up_types.
+    (**)
+    exists a__p2 τ__p2 ({(Λ a__p1 ⬪ t__p1) ≔__x x} t__p2). exists ψ__out a2 τ2 ({t1' ≔__x x} t2). splits.
+    + admit.
+    + applys_eq Inf__Let. rewrite subst_tvar_Tm_spec. reflexivity. eassumption.
+      intros y NIL__y. asserts_rewrite (y = x). admit. applys_eq INF__e2. apply open_Tm_wrt_Tm_close_Tm_wrt_Tm.
+    + clear PRIN1 PRIN2 INF__e1 INF__e2 TYP__e2.
+      inv_EInst'. simpl+ in *. onAllHyps move_up_types.
+      exists. applys_eq EInst__O. 2:eassumption. 2:instantiate (1 := a__p2); admit. 2:applys_eq AINST; admit.
+      simpl+. fequals.
+      rewrite <- Sub_app_Tm_subst_tvar_Tm'. fequals. admit.
+Admitted.

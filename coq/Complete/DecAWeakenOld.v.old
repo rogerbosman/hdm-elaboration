@@ -1,0 +1,355 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.E.
+Require Import Defs.ERels.
+Require Import Defs.List.
+Require Import Defs.FrA.
+Require Import Defs.OpenClose.
+Require Import Defs.WfSTt.
+
+Require Import Defs.DecA.
+
+Notation E_sk_sub := M_E_skvars.R__sub.
+#[export] Hint Unfold E_sk_sub : defs rels.
+
+(* Notation E_A_sk_eq := M_E_A_skvars.R__eq. *)
+(* #[export] Hint Unfold E_sk_eq : defs rels. *)
+
+Lemma SubSumpTmA_E_A_sk_sub : forall ψ1 ψ2 t1 σ t2 τ a,
+    SubSumpTmA ψ2 t1 σ t2 a τ
+  -> ψ2 ⊆ψα ψ1
+  -> E_sk_sub ψ1 ψ2
+  -> SubSumpTmA ψ1 t1 σ t2 a τ.
+Proof.
+  introv SS SUB1 SUB2. gen ψ1. induction SS; intros. econstructor. FrA_L_sub.
+  unfolds in SUB1. unfolds in SUB2.
+  econstructor. FrA_L_sub. wfdec. eapply IHSS. reldec. reldec.
+Qed.
+
+Lemma DecA_weaken : forall ψ1 ψ2 e τ a t,
+      ψ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+    -> ψ2 ⊆ψα ψ1
+    -> E_sk_sub ψ1 ψ2
+    -> ψ1 =ψx ψ2
+    -> ψ1 ⊢d' e ▸ ⟨a⟩ τ ⤳ t.
+Proof.
+  introv DECA SUB1 SUB2 EQ. unfolds in SUB1. unfolds in SUB2. unfolds in EQ. gen ψ1. induction DECA; intros.
+  - econstructor. erewrite E_lookup_E_x_list_eq. eassumption. eassumption.
+    eauto using SubSumpTmA_E_A_sk_sub. FrA_L_sub.
+  - econstructor. FrA_L_sub.
+  - applys DecA__Abs L. eapply WfT_E_A_sk_sub. eassumption. reldec.
+    introx. eapply H. fsetdec. reldec. reldec. crush.
+    FrA_L_sub.
+  - econstructor. eauto. eapply IHDECA2. reldec. reldec. crush.
+  - applys DecA__Let L. eauto.
+    introx. eapply H. fsetdec. reldec. reldec. crush.
+Qed.
+
+Corollary DecA_strengthen_obj : forall t' a' σ ψ e a τ t,
+    ψ ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> fv__α(t') ∪ varl a' ∪ fv__α(σ) ⊆ E_skvars ψ
+  -> ψ ::o ⦇t' ▸ ⟨a'⟩ σ⦈  ⊢d' e ▸ ⟨a⟩ τ ⤳ t.
+Proof. intros. applys DecA_weaken H; reldec. Qed.
+
+Require Import Defs.Rename.
+Require Import Defs.Sub.
+Require Import Defs.Subst.
+Require Import Defs.Foralls.
+
+Lemma create_fresh_Rename : forall a L,
+    exists θ,
+      Rename_dom_list θ = a
+    /\ Rename_codom_list θ ### L.
+Admitted.
+
+Lemma SubSumpTm_E_sk_sub : forall ψ2 ψ1 t1 σ t2 τ,
+    SubSumpTm ψ1 t1 σ t2 τ
+  -> ψ1 ⊆ψα ψ2
+  -> SubSumpTm ψ2 t1 σ t2 τ.
+Proof.
+  introv SS. gen ψ2. induction SS; introv SS'. crush.
+  econstructor. eauto using WfT_E_A_sk_sub. eauto.
+Qed.
+
+Lemma SubSumpTmASubSumpTm : forall ψ t1 σ t2 a τ,
+    SubSumpTmA ψ t1 σ t2 a τ
+  -> SubSumpTm (ψ ::a a) t1 σ t2 τ.
+Proof.
+  introv SS. induction SS. crush. econstructor.
+  wfdec. applys SubSumpTm_E_sk_sub IHSS. reldec.
+Qed.
+
+Lemma SubSumpTmSubSumpTmA : forall σ ψ t1 t2 a τ,
+    SubSumpTm (ψ ::a a) t1 σ t2 τ
+  -> a ### E_skvars ψ
+  -> SubSumpTmA ψ t1 σ t2 a τ.
+Proof.
+  intro σ. forall_ind σ; introv SS FR.
+  - inverts SS. eauto.
+  - inverts SS.
+    applys_eq SSTA__L. 2,3:eassumption. instantiate (1 := []). crush.
+    eapply IHn. crush. eapply SubSumpTm_E_sk_sub. eassumption. reldec. auto.
+Qed.
+
+Definition Rename_E (θ:Rename) (ψ__in:E) : E := (fold_right (fun p ψ => {fst p ↤ snd p}ψ) ψ__in θ).
+Lemma Rename_E_rewr : forall θ ψ__in, Rename_E θ ψ__in = fold_right (fun p ψ => {fst p ↤ snd p}ψ) ψ__in θ. reflexivity. Qed.
+
+Definition Rename_A (θ:Rename) (a__in:A) : A := (fold_right (fun p a => {fst p ↤ snd p}a) a__in θ).
+Lemma Rename_A_rewr : forall θ a__in, Rename_A θ a__in = fold_right (fun p ψ => {fst p ↤ snd p}ψ) a__in θ. reflexivity. Qed.
+
+Require Import Defs.WfE.
+Require Import Defs.ELookup.
+Require Import Defs.SubSump.
+
+Lemma SubSumpTmRename : forall θ σ ψ t1 t2 a τ,
+    SubSumpTm (ψ ::a a) t1 σ t2 τ
+  -> SubSumpTm (Rename_E θ (ψ ::a a)) ⟦(Rename_lift θ) ▹ t1⟧ ⟦(Rename_lift θ) ▹ σ⟧ ⟦(Rename_lift θ) ▹ t2⟧ ⟦(Rename_lift θ) ▹ τ⟧.
+Proof.
+  intro θ. ind_Sub θ; introv SS.
+  - simpl+. eassumption.
+  - simpl+. dist. eapply SubSumpTm_rename_skvar_E. eauto.
+Qed.
+
+
+Ltac ind_Rn θ := induction θ as [|[?α ?β] ?θ].
+Ltac ind_Rn_rev θ := induction θ as [|[?α ?β] ?θ] using rev_ind.
+
+Lemma Rename_E_app1 : forall θ1 θ2 ψ,
+    Rename_E (θ1 ++ θ2) ψ = Rename_E θ1 (Rename_E θ2 ψ).
+Proof.
+  intro. ind_Rn θ1; intros. crush. simpl+.
+  do 2 rewrite <- Rename_E_rewr. rewrite IHθ1. crush.
+Qed.
+
+Lemma rename_skvar_E_app : forall α β ψ1 ψ2,
+    {β ↤ α}(ψ1 +++ ψ2) = ({β ↤ α}ψ1) +++ ({β ↤ α}ψ2).
+Proof. intros. induction ψ2; simpl+; crush. Qed.
+
+Lemma Rename_E_app2 : forall θ ψ1 ψ2,
+    Rename_E θ (ψ1 +++ ψ2) = (Rename_E θ ψ1) +++ (Rename_E θ ψ2).
+Proof.
+  intro. ind_Rn θ; intros. crush. simpl+. do 2 rewrite <- Rename_E_rewr.
+  rewrite IHθ. rewrite rename_skvar_E_app. crush.
+Qed.
+
+Lemma Rename_E_onea : forall θ a,
+    Rename_E θ <a>a = <Rename_A θ a>a.
+Admitted.
+
+Lemma Rename_A_app1 : forall θ a1 a2,
+    Rename_A θ (a1 ++ a2) = (Rename_A θ a1) ++ (Rename_A θ a2).
+Admitted.
+
+Lemma Rename_A_notin : forall θ a,
+    varl (Rename_dom_list θ) ∐ varl a
+  -> Rename_A θ a = a.
+Proof.
+  intro θ. ind_Rn θ. crush. introv DISJ.
+  simpl+. rewrite <- Rename_A_rewr. rewrite IHθ. apply rename_skvar_A_notin.
+  in_disj. simpl+ in DISJ. disj_sub.
+Qed.
+
+Lemma Rename_E_cons_a : forall θ ψ,
+    varl (Rename_dom_list θ) ∐ varl (Rename_codom_list θ)
+  -> Rename_E θ (ψ ::a Rename_dom_list θ) = (Rename_E θ ψ) ::a (Rename_codom_list θ).
+Proof.
+  introv DISJ. norm. rewrite Rename_E_app2. fequals.
+  clear ψ. rewrite Rename_E_onea. fequals.
+  ind_Rn θ. crush. simpl+ in *.
+  rewrite <- Rename_A_rewr. norm. rewrite Rename_A_app1. rewrite IHθ. 2:disj_sub.
+  simpl+. rewrite Rename_A_notin. 2:admit. simpl+. fequals. apply rename_skvar_A_notin. admit.
+Admitted.
+
+Lemma SubSumpTmA_E_A_sk_sub' : forall ψ1 ψ2 t1 σ t2 τ a L,
+    SubSumpTmA ψ2 t1 σ t2 a τ
+  -> ψ2 ⊆ψα ψ1
+  -> fv__α(t1) ∪ fv__α(σ) ∐ varl a
+  -> exists (θ:Rename),
+      Rename_dom_list θ = a
+    /\ Rename_codom_list θ ### L
+    /\ SubSumpTmA ψ1 t1 σ ⟦(Rename_lift θ) ▹ t2⟧ (Rename_codom_list θ) ⟦(Rename_lift θ) ▹ τ⟧.
+Proof.
+  introv SS SUB DISJ. unfolds in SUB.
+  eapply SubSumpTmASubSumpTm in SS.
+  forwards [θ [? ?]]: create_fresh_Rename a (L ∪ E_skvars ψ1).
+  exists θ. splits. assumption. FrA_L_sub.
+  eapply (SubSumpTmRename θ) in SS.
+  asserts_rewrite (Rename_E θ (ψ2 ::a a) = ψ2 ::a (Rename_codom_list θ)) in SS. admit.
+  eapply (SubSumpTm_E_sk_sub (ψ1 ::a Rename_codom_list θ)) in SS. 2:reldec.
+  eapply SubSumpTmSubSumpTmA in SS. 2:FrA_L_sub. applys_eq SS.
+  Sub_notin'. simpl+. rewrite H. disj_sub.
+  Sub_notin'. simpl+. rewrite H. disj_sub.
+Admitted.
+
+Lemma DecA_weaken' : forall ψ1 ψ2 e τ a t,
+      ψ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+    -> ψ2 ⊆ψα ψ1
+    -> ψ1 =ψx ψ2
+    -> wf(ψ2)
+    -> exists (θ:Rename),
+        ψ1 ⊢d' e ▸ ⟨Rename_codom_list θ⟩ ⟦(Rename_lift θ) ▹ τ⟧ ⤳ ⟦(Rename_lift θ) ▹ t⟧.
+Proof.
+  introv DECA SUB1 SUB2 WFE. unfolds in SUB1. unfolds in SUB2. gen ψ1. induction DECA; intros.
+  - forwards: E_lookup_wf. eassumption. eassumption.
+    forwards: FrA_props2. eapply SubSumpTmA_FrA. eassumption.
+    forwards [θ [?DOM [?FR ?SS]]]: SubSumpTmA_E_A_sk_sub'. eassumption. eassumption. simpl+. symmetry.
+    erewrite WfS_sk. 2:eassumption. rewrite E_A_skvars_E_skvars. eassumption.
+    exists. econstructor.
+    + erewrite E_lookup_E_x_list_eq. eassumption. eassumption.
+    + eassumption.
+    + eassumption.
+  - exists ([]:Rename). simpl+. crush.
+  - freshx (L ∪ E_names (ψ ::a a1)).
+    specializes H x (ψ1 ::a a1 ::x x :- S__T τ1). specializes H. reldec. simpl+. crush.
+    destruct H as [θ IH].
+
+    exists. simpl+. applys_eq DecA__Abs. 1,2:admit.
+    introy. asserts_rewrite (y = x). admit.
+Abort.
+
+Lemma DecA_Rename : forall θ ψ e a τ t,
+      ψ ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+    -> Rename_E θ ψ ⊢d' e ▸ ⟨Rename_A θ a⟩ ⟦(Rename_lift θ) ▹ τ⟧ ⤳ ⟦(Rename_lift θ) ▹ t⟧.
+Admitted.
+
+Lemma DecA_weaken' : forall ψ1 ψ2 e τ a t,
+      ψ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+    -> ψ2 ⊆ψα ψ1
+    -> ψ1 =ψx ψ2
+    -> wf(ψ2)
+    -> exists (θ:Rename),
+        ψ1 ⊢d' e ▸ ⟨Rename_codom_list θ⟩ ⟦(Rename_lift θ) ▹ τ⟧ ⤳ ⟦(Rename_lift θ) ▹ t⟧.
+Proof.
+  introv DECA. forwards E: DecA_lc DECA. gen ψ1 ψ2 a τ t0. induction E; introv DECA SUB1 SUB2 WF; unfolds in SUB1; unfolds in SUB2; inverts DECA.
+  - forwards: E_lookup_wf. eassumption. eassumption.
+    forwards: FrA_props2. eapply SubSumpTmA_FrA. eassumption.
+    forwards [θ [?DOM [?FR ?SS]]]: SubSumpTmA_E_A_sk_sub'. eassumption. eassumption. simpl+. symmetry.
+    erewrite WfS_sk. 2:eassumption. rewrite E_A_skvars_E_skvars. eassumption.
+    exists. econstructor.
+    + erewrite E_lookup_E_x_list_eq. eassumption. eassumption.
+    + eassumption.
+    + eassumption.
+  - exists ([]:Rename). simpl+. crush.
+  - admit.
+
+  - freshx (L). specializes DEC x. specializes DEC. fsetdec.
+    forwards [θ [? ?]]: create_fresh_Rename a1 empty.
+    eapply (DecA_Rename θ) in DEC.
+    (**)
+    specializes H0. eassumption. simpl+.
+Abort.
+
+
+Lemma DecA_generalize_binding_open : forall ψ1 ψ2 x σ1 σ2 e a τ t,
+    (ψ1 ::x x :- σ2) +++ ψ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ1 σ1 σ2
+  -> exists a' τ' t',
+      (ψ1 ::x x :- σ1) +++ ψ2 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'
+    (* /\ (∀ a'⬪ S__T τ') = (∀ a⬪ S__T τ) *)
+    (* /\ (Λ a'⬪ t') = (Λ a⬪ t) *)
+    .
+Proof.
+  introv DEC. forwards E: DecA_lc DEC. gen ψ1 ψ2 x σ1 σ2 a τ t0. induction E.
+  all: introv DECA SS; inverts DECA.
+  - admit.
+  - exists. econstructor. simpl+. eapply FrA_nil.
+  - specializes IHE1. eassumption. eassumption. admit.
+
+  - freshy L. specializes DEC y. specializes DEC. fsetdec.
+    specializes H0 y ψ1 (ψ2 ::a a1 ::x y :- S__T τ1). specializes H0.
+      applys_eq DEC. eassumption.
+      destruct H0 as [a' [τ' [t' DEC']]].
+    (**)
+    exists. applys DecA__Abs a1 τ1. eapply WfT_E_A_sk_sub; try eassumption. reldec.
+    introz. asserts_rewrite (z = y). admit. applys_eq DEC'. rewrite open_Tm_wrt_Tm_close_Tm_wrt_Tm. reflexivity.
+    eapply FrA_L_sub. eassumption. simpl+.
+    assert (ψ1 ⊢wfσ σ1). admit. eapply WfS_sk in H0. rewrite E_A_skvars_E_skvars in H0.
+    assert (ψ1 ⊢wfσ σ2). admit. eapply WfS_sk in H1. rewrite E_A_skvars_E_skvars in H1.
+    fsetdec.
+
+  - specializes IHE. eassumption. eassumption.
+    destruct IHE as [a1' [τ1' [t1' DEC1']]].
+    (**)
+    freshy L. specializes DEC2 y. specializes DEC2. fsetdec.
+    specializes H0 ψ1 (ψ2 ::x y :- (∀ a1 ⬪ S__T τ1) ::o ⦇t__Unit ▸ ⟨a1⟩ S__T T__Unit⦈). specializes H0.
+    eapply DEC2. eassumption.
+    destruct H0 as [a' [τ' [t2' DEC2']]].
+    (**)
+    exists. econstructor. eassumption.
+    introz. asserts_rewrite (z = y). admit.
+    applys_eq DEC2'. norm. simpl+. fequals. fequals.
+Abort.
+
+Lemma DecA_generalize_binding : forall ψ x σ1 σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists a' τ' t',
+      ψ ::x x :- σ1 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'
+    (* /\ (∀ a'⬪ S__T τ') = (∀ a⬪ S__T τ) *)
+    (* /\ (Λ a'⬪ t') = (Λ a⬪ t) *)
+    .
+Proof.
+  introv DEC. forwards E: DecA_lc DEC. gen ψ x σ1 σ2 a τ t0. induction E.
+  all: introv DECA SS; inverts DECA.
+  - admit.
+  - exists. econstructor. simpl+. eapply FrA_nil.
+  - specializes IHE1. eassumption. eassumption. admit.
+Abort.
+
+Require Import Defs.NoDup.
+Require Import Defs.OpenClose.
+
+Lemma DecA_generalize_binding : forall L ψ x σ1 σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists (θ:Rename),
+      Rename_dom_list θ = a
+    /\ Rename_codom_list θ ### (varl (Rename_dom_list θ) ∪ L)
+    /\ ψ ::x x :- σ1 ⊢d' e ▸ ⟨Rename_codom_list θ⟩ ⟦(Rename_lift θ) ▹ τ⟧ ⤳ ⟦(Rename_lift θ) ▹ t⟧.
+Admitted.
+
+
+
+Require Import Semantics.FundPropAdmit.
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+
+Require Import Defs.TmTy.
+Require Import Defs.Subx.
+
+
+Lemma Rename_gen_Tm : forall θ t ψ τ,
+  (*   ψ ⊢t t ▸ S__T τ *)
+  (* -> ψ ⊢t ⟦(Rename_lift θ) ▹ t⟧ ▸ S__T τ *)
+    (* Rename_codom_list θ ### (fv__α(τ) ∪ varl (Rename_dom_list θ)) *)
+  (* -> *)
+    ψ ⊢t≈ (Λ (Rename_dom_list θ)⬪ t) ≈ (Λ (Rename_codom_list θ)⬪ ⟦(Rename_lift θ) ▹ t⟧) ▸ (∀ (Rename_dom_list θ)⬪ S__T τ).
+Proof.
+  intros. ind_Rn θ.
+  - admit.
+  - simpl+. eapply CompatTLam. intros α__ψ NIL__αψ.
+    rewrite <- subst_skvar_Sc_spec. rewrite <- subst_skvar_Tm_spec.
+
+  splits.
+  (* ψ ⊢t Λ Rename_dom_list θ ⬪ t0 ▸ (∀ a ⬪ S__T τ) *) admit.
+  (* ψ ⊢t Λ Rename_codom_list θ ⬪ ⟦Rename_lift θ ▹ t0⟧ ▸ (∀ a ⬪ S__T τ) *) admit.
+  introv IN. ind_Rn θ.
+Abort.
+
+
+Lemma DecA_generalize_binding' : forall ψ x σ1 σ2 e a τ t,
+    ψ ::x x :- σ2 ⊢d' e ▸ ⟨a⟩ τ ⤳ t
+  -> SubSump' ψ σ1 σ2
+  -> exists a' τ' t',
+      ψ ::x x :- σ1 ⊢d' e ▸ ⟨a'⟩ τ' ⤳ t'
+    /\ (∀ a'⬪ S__T τ') = (∀ a⬪ S__T τ)
+    /\ ψ ⊢t≈ (Λ a⬪ t) ≈ (Λ a'⬪ t') ▸ (∀ a⬪ S__T τ).
+Proof.
+  introv DECA SS.
+  forwards: DecA_generalize_binding. eassumption. eassumption. destr.
+  forwards: Rename_gen_T (S__T τ). eassumption. simpl+ in H0.
+  exists. splits. eassumption. symmetry. eassumption.
+Admitted.

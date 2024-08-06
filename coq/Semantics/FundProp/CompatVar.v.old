@@ -1,0 +1,34 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.EquivRel.
+Require Import Semantics.gammaDef.
+Require Import Semantics.LogRel.
+Require Import Semantics.logrel_val_props.
+Require Import Semantics.Opsem.
+Require Import Semantics.rhoDef.
+
+(*** Var *)
+Lemma CompatVar : forall ψ x σ,
+    E_lookup ψ x = Some σ
+  -> ψ ⊢t≈ (t__Var_f x) ≈ (t__Var_f x) ▸ σ.
+Proof.
+  introv IN__x. unfolds. splits. 1,2:eauto.
+  introv IN. unfolds.
+  forwards [v1 [v2 [?EQ [?EQ REL]]]]: E_lookup_logrel_val. eassumption. eassumption.
+  forwards PR: props_logrel_val. eassumption. unfolds in PR.
+  rewrite EQ in *. rewrite EQ0 in *. clear EQ EQ0.
+  splits.
+  - simpl+. Sub_notin'. crush. fv_empty.
+  - simpl+. Sub_notin'. crush. fv_empty.
+  - exists v1 v2. splits.
+    + simpl+. Sub_notin'. fv_empty.
+    + simpl+. Sub_notin'. fv_empty.
+    + eassumption.
+Qed.

@@ -1,0 +1,151 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+
+(* Require Import Defs.Dec. *)
+Notation  "ψ ⊢d e ▸ τ ⤳ t" := (Dec ψ e τ t) (at level 70, format "ψ  ⊢d  e  ▸  τ  ⤳  t" ) : type_scope.
+
+Require Import Defs.E.
+Require Import Defs.EInst.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+(* Require Import Defs.Freevars. *)
+Require Import Defs.Foralls.
+Require Import Defs.Inf.
+(* Require Import Defs.Inst. *)
+Require Import Defs.Lc.
+Require Import Defs.List.
+(* Require Import Defs.NoDup. *)
+(* Require Import Defs.Subst. *)
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.SubSump.
+
+(* Require Import Defs.WfE. *)
+(* Require Import Defs.WfSTt. *)
+
+
+Axiom logrel : Tm -> Tm -> Prop.
+Axiom SS : Sc -> T -> Prop.
+
+Definition SubSump_principal (ψ:E) (t__in:Tm) (σ:Sc) (t__p:Tm) (τ__p:T) :=
+    SubSump ψ t__in σ t__p τ__p
+    /\ forall τ t,
+      SubSump ψ t__in σ t τ
+    -> SubSump ψ t__p (S__T τ__p) t τ.
+
+Fact SubSump_principal1 : forall ψ t__in σ t__out τ,
+    SubSump_principal ψ t__in σ t__out τ
+  -> SubSump ψ t__in σ t__out τ.
+Proof. crush. Qed.
+
+Axiom create_SubSump_principal : forall σ ψ t__in,
+    exists τ__p t__p, SubSump_principal ψ t__in σ τ__p t__p.
+
+Axiom SubSump_trans : forall ψ t t' t'' σ τ' τ'',
+    SubSump ψ t σ t' τ'
+  -> SubSump ψ t' (S__T τ') t'' τ''
+  -> SubSump ψ t σ t'' τ''.
+
+(*** Principal typing *)
+Definition Typable (ψ:E) (e:Ex) := (exists τ t, ψ ⊢d e ▸ τ ⤳ t).
+
+Definition PrincipalTyping (ψ:E) (e:Ex) (τ__p:T) (t__p:Tm) :=
+    ψ ⊢d e ▸ τ__p ⤳ t__p
+  /\ forall τ t,
+    ψ ⊢d e ▸ τ ⤳ t
+  -> SubSump ψ t__p (S__T τ__p) t τ.
+
+(*** Complete Lemmas *)
+Axiom EInst_lookup : forall L ψ ψ__dec θ x σ__dec,
+    E_lookup ψ__dec x = Some σ__dec
+  -> {L, •, []} ⊢e ψ ⤳ {ψ__dec, θ}
+  -> exists σ, E_lookup ψ x = Some σ
+       /\ σ__dec = ⟦θ ▹ σ⟧.
+
+Axiom Inst_huh : forall ψ ψ__dec x σ τ__p t__p θ,
+    SubSump_principal ψ__dec (t__Var_f x) ⟦θ ▹ σ⟧ τ__p t__p
+  -> exists t a τ,
+      Inst (t__Var_f x) σ t a τ (E_A_skvars ψ).
+
+Axiom Inst__p : forall ψ ψ__dec x σ (τ__p:T) (t__p:Tm) θ L,
+    SubSump_principal ψ__dec (t__Var_f x) ⟦θ ▹ σ⟧ t__p τ__p
+  -> exists t a a__dec τ θ',
+      Inst (t__Var_f x) σ t a τ (E_A_skvars ψ)
+    /\ a__dec # L
+    /\ (ψ__dec ::a a__dec) ⊢a a ⤳ θ'
+    /\ ⟦θ' ++ θ ▹ τ⟧ = τ__p
+    /\ ⟦θ' ++ θ ▹ t⟧ = t__p.
+
+Fact AInst__one : forall ψ α τ (WFT: ψ ⊢wfτ τ),
+    ψ ⊢a [α] ⤳ [(τ, α)].
+Proof. intros. unfold one. eauto. Qed.
+
+Lemma Inst_SS__p : forall σ ψ__dec θ L L__dec t__in,
+    exists (a a__dec:A) (θ':Sub) (τ:T) (t__out:Tm),
+      Inst t__in σ t__out a τ L
+    /\ (ψ__dec ::a a__dec) ⊢a a ⤳ θ'
+    /\ a__dec # L__dec
+    /\ SubSump_principal ψ__dec t__in ⟦θ ▹ σ⟧ ⟦θ' ++ θ ▹ t__out⟧ ⟦θ' ++ θ ▹ τ⟧.
+Proof.
+  intro σ. forall_ind σ. admit. intros.
+  forwards [α NIL__α]: atom_fresh L.
+  forwards [a [a__dec [θ' [τ [t__out [INS [SS [FR AINST]]]]]]]] : IHn (open_Sc_wrt_T σ__Forall (T__Var_f α)) (L ∪ {{α}}) (L__dec ∪ {{α}}). simpl+. reflexivity.
+  exists (a ++ [α]) (α :: a__dec) (θ' ++ [(T__Var_f α, α)]). exists. splits.
+  - applys InstP. fsetdec. eassumption.
+  - apply AInst_merge. apply AInst__one. split. crush. simpl+. clfsetdec. admit.
+  - eauto using FrA_shift.
+  - admit.
+Admitted.
+
+
+(*** Complete *)
+Theorem Inf_complete_open : forall e ψ__dec,
+    Typable ψ__dec e
+  -> forall L ψ__in,
+    L ⊢e' ψ__in ⤳ ψ__dec
+  -> exists τ__p t__p ψ__out a__alg τ__alg t__alg θ,
+      PrincipalTyping ψ__dec e τ__p t__p
+    /\ ψ__in ⊢ e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg ⊣ ψ__out
+    /\ {L, •, []} ⊢e ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__p ▸ ⟨[]⟩ S__T τ__p⦈, θ}.
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv [τ__dec [t__dec TMTY__dec]] INST; inverts TMTY__dec.
+  - forwards [τ__p [t__p SS__p]]: create_SubSump_principal σ ψ__dec (t__Var_f x).
+    rename ψ__in into ψ. rename σ into σ__dec. destruct INST as [θ INST].
+    forwards [σ [IN' EQ]]: EInst_lookup. eassumption. eassumption. subst.
+    forwards [t [a [a__dec [τ [θ__a [INS [FR [AINST [EQ1 EQ2]]]]]]]]]: Inst__p. eauto. subst.
+    exists. splits.
+    + unfolds. split. econstructor. eassumption. apply SS__p.
+      introv TMTY'. inverts TMTY'. rewrite IN0 in IN. inverts IN.
+      eapply SS__p. assumption.
+    + econstructor. eassumption. eassumption.
+    + applys_eq EInst__O. 2:eassumption. fequals. simpl+. reflexivity. simpl+. reflexivity. admit. applys_eq AINST. admit.
+Abort.
+
+Theorem Inf_complete_open : forall e ψ__dec,
+    Typable ψ__dec e
+  -> forall L ψ__in,
+    L ⊢e' ψ__in ⤳ ψ__dec
+  -> exists τ__p t__p ψ__out a__alg τ__alg t__alg θ,
+      PrincipalTyping ψ__dec e τ__p t__p
+    /\ ψ__in ⊢ e ▸ ⟨a__alg⟩ τ__alg ⤳ t__alg ⊣ ψ__out
+    /\ {L, •, []} ⊢e ψ__out ::o ⦇t__alg ▸ ⟨a__alg⟩ S__T τ__alg⦈ ⤳ {ψ__dec ::o ⦇t__p ▸ ⟨[]⟩ S__T τ__p⦈, θ}.
+Proof.
+  intro e. assert (LC: lc(e)). admit.
+  induction LC; introv [τ__dec [t__dec TMTY__dec]] INST; inverts TMTY__dec.
+  - rename ψ__in into ψ. rename σ into σ__dec. destruct INST as [θ INST].
+    forwards [σ [IN' EQ]]: EInst_lookup. eassumption. eassumption. subst.
+    forwards [a [a__dec [θ' [τ [t__out [INS [AINST [FR SS__p]]]]]]]]: Inst_SS__p  σ ψ__dec (t__Var_f x).
+    (* forwards [τ__p [t__p SS__p]]: create_SubSump_principal σ ψ__dec (t__Var_f x). *)
+    (* forwards [t [a [a__dec [τ [θ__a [INS [FR [AINST [EQ1 EQ2]]]]]]]]]: Inst__p. eauto. subst. *)
+    exists. splits.
+    + unfolds. split. econstructor. eassumption. eapply SubSump_principal1. eassumption.
+      introv TMTY'. inverts TMTY'. rewrite IN0 in IN. inverts IN.
+      eauto. eapply SS__p. assumption.
+    + econstructor. eassumption. eassumption.
+    + applys_eq EInst__O. 2:eassumption. fequals. simpl+. reflexivity. simpl+. reflexivity. eauto.
+      applys AInst_E_sk_sub AINST. unfolds. simpl+.
+
+      applys_eq AINST. crush.
+Abort.

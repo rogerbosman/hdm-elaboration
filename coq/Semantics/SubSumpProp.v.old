@@ -1,0 +1,832 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.E.
+Require Import Defs.ERels.
+Require Import Defs.FrA.
+Require Import Defs.Foralls.
+Require Import Defs.Lc.
+Require Import Defs.List.
+Require Import Defs.OpenClose.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.Subst.
+Require Import Defs.SubSump.
+Require Import Defs.SubSump.
+Require Import Defs.TmTy.
+Require Import Defs.WfE.
+
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.LogRelEProps.
+Require Import Semantics.FundProp.
+Require Import Semantics.FundProp.CompatTLam.
+Require Import Semantics.FundProp.CompatTApp.
+
+(*** Equiv symm *)
+(** Rho flip *)
+Definition R_flip (R:𝓡) : 𝓡 := fun t1 t2 => R t2 t1.
+
+#[derive(equations=no)] Equations rho_flip : rho -> rho :=
+  rho_flip [] := [];
+  rho_flip ((τ1, τ2, R, α)::ρ) := ((τ2, τ1, R_flip R, α) :: (rho_flip ρ)).
+
+Ltac rho_ind ρ := induction ρ as [|[[[?τ1 ?τ2] ?R] ?α] ρ ?IH].
+
+Fact rho_flip_π1 : forall ρ,
+  π1 (rho_flip ρ) = π2 ρ.
+Proof. introv. rho_ind ρ. crush. simpl+. crush. Qed.
+Fact rho_flip_π2 : forall ρ,
+  π2 (rho_flip ρ) = π1 ρ.
+Proof. introv. rho_ind ρ. crush. simpl+. crush. Qed.
+#[export] Hint Rewrite rho_flip_π1 rho_flip_π2 : core.
+
+Fact rho_flip_involutive : forall ρ,
+    rho_flip (rho_flip ρ) = ρ.
+Proof. introv. rho_ind ρ. crush. simpl+. crush. Qed.
+
+Fact dom_rho_flip : forall ρ,
+    dom_rho (rho_flip ρ) = dom_rho ρ.
+Proof. introv. rho_ind ρ. crush. simpl+. crush. Qed.
+
+(** gamma flip *)
+#[derive(equations=no)] Equations gamma_flip : gamma -> gamma :=
+  gamma_flip [] := [];
+  gamma_flip ((t1, t2, x)::ρ) := ((t2, t1, x) :: (gamma_flip ρ)).
+
+Ltac gamma_ind γ := induction γ as [|[[?t1 ?t2] ?α] γ ?IH].
+
+Fact gamma_flip_π1 : forall γ,
+  π1 (gamma_flip γ) = π2 γ.
+Proof. introv. gamma_ind γ. crush. simpl+. crush. Qed.
+Fact gamma_flip_π2 : forall γ,
+  π2 (gamma_flip γ) = π1 γ.
+Proof. introv. gamma_ind γ. crush. simpl+. crush. Qed.
+#[export] Hint Rewrite gamma_flip_π1 gamma_flip_π2 : core.
+
+Fact dom_gamma_flip : forall γ,
+    dom_gamma (gamma_flip γ) = dom_gamma γ.
+Proof. introv. gamma_ind γ. crush. simpl+. crush. Qed.
+
+(** lems *)
+Lemma rho_elem_valid_symm: forall (τ2 τ1 : T) (R : 𝓡),
+    rho_elem_valid (τ2, τ1, R)
+  -> rho_elem_valid (τ1, τ2, flip R).
+Proof.
+  intros. unfolds. splits. 1,2:crush.
+  unfold flip. unfold Rel. crush.
+Qed.
+
+Lemma closed_vals_symm: forall (σ : Sc) (v1 v2 : Tm) (ρ : rho),
+    closed_vals σ ρ v1 v2
+  -> closed_vals σ (rho_flip ρ) v2 v1.
+Proof. intros. unfold closed_vals in *. splits; simpl+; crush. Qed.
+
+Lemma logrel_val_symm : forall σ v1 v2 ρ,
+    ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ρ
+  -> ⦅v2 × v1⦆ ∈ 𝒱⟦σ⟧ (rho_flip ρ).
+Proof.
+  intro σ. forall_ind σ. induction τ. all:introv EQ; simp' in *; destruct EQ as [CV EQ].
+  all: split; auto using closed_vals_symm.
+  - clear - EQ. rho_ind ρ. crush. simpl+ in *. if_dec; try unfold R_flip; crush.
+  - crush.
+  - crush.
+  - destruct EQ as [t1 [t2 [EQ1 [E2 EQ]]]]. subst.
+    exists t2 t1. splits. 1,2:simpl+; crush.
+    intros v2' v1' VAL1. specializes EQ v1' v2'.
+    specializes EQ. eapply IHτ1 in VAL1. applys_eq VAL1. symmetry. apply rho_flip_involutive.
+    destruct EQ as [TMTY1 [TMTY2 [v1 [v2 [OP1 [OP2 VAL2]]]]]].
+    splits. 1,2:simpl+; eassumption. exists v2 v1.
+    splits. 1,2:eassumption. eapply IHτ2 in VAL2. applys_eq VAL2.
+  - destruct EQ as [t1 [t2 [EQ1 [E2 EQ]]]]. exists t2 t1. splits. 1,2:crush.
+    intros τ2 τ1 R. specializes EQ τ1 τ2 (flip R).
+    destruct EQ as [L EQ]. exists L.
+    intros α NIL__α RV. specializes EQ α. specializes EQ. fsetdec. auto using rho_elem_valid_symm.
+    destruct EQ as [TMTY1 [TMTY2 [v1' [v2' [OP1 [OP2 VAL]]]]]]. splits. 1,2:simpl+; eassumption.
+    exists v2' v1'. splits. 1,2:eassumption. apply IHn in VAL. 2:simpl+; reflexivity.
+    applys_eq VAL.
+Qed.
+
+Lemma LogrelE_flip : forall ψ ρ γ,
+    ⦅ρ, γ⦆ ∈ ⦅𝒟, 𝒢⦆⟦ψ⟧
+  -> ⦅rho_flip ρ, gamma_flip γ⦆ ∈ ⦅𝒟, 𝒢⦆⟦ψ⟧.
+Proof.
+  induction ψ. 2:induction a. all:introv IN; simp' in *; simpl+ in *.
+  - crush.
+  - destruct IN as [τ1 [τ2 [R [ρ' [EQ [RV [NIL IN]]]]]]]. subst.
+    exists. splits. simpl+. reflexivity. apply rho_elem_valid_symm. eassumption.
+    rewrite dom_rho_flip. fsetdec. eauto.
+  - destruct IN as [v1 [v2 [γ' [EQ [VAL [NIL IN']]]]]]. subst.
+    exists. splits. simpl+. reflexivity. auto using logrel_val_symm.
+    rewrite dom_gamma_flip. fsetdec. eauto.
+Qed.
+
+(** Prop *)
+Lemma EquivRel_symm : forall ψ t1 t2 σ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t2 ≈ t1 ▸ σ.
+Proof.
+  introv [TMTY1 [TMTY2 EQ]]. splits. 1,2:eassumption.
+  introv IN. specializes EQ (rho_flip ρ) (gamma_flip γ). specializes EQ. auto using LogrelE_flip.
+  simpl+ in *. destruct EQ as [CLTMTY1 [CLTMTY2 [v1 [v2 [OP1 [OP2 EQ]]]]]].
+  splits. 1,2:eauto using TmTy_close1, TmTy_close2.
+  exists. splits. eassumption. eassumption. applys_eq logrel_val_symm. 2:eassumption.
+  symmetry. apply rho_flip_involutive.
+Qed.
+
+(*** Logrel trans *)
+(** Rho trans *)
+Definition R_trans (R1 R2:𝓡) : 𝓡 := fun t1 t3 => exists t2, R1 t1 t2 /\ R2 t2 t3.
+Definition R_id : 𝓡 := fun t t' => t = t'.
+Definition R_id' : 𝓡 := fun t t' => t = t' /\ forall τ, • ⊢wfτ τ -> • ⊢t t ▸ S__T τ.
+Definition R_id'' (τ:T) : 𝓡 := fun t t' => t = t' /\ • ⊢t t ▸ S__T τ.
+
+Require Import Coq.Logic.FunctionalExtensionality.
+Lemma R_trans_R_id : forall (R:𝓡), forall t1 t2, (R_trans R R_id) t1 t2 <-> R t1 t2.
+Proof.
+  introv. unfold R_id. unfold R_trans. split; intro.
+  - destruct H. destruct H. crush.
+  - exists t2. crush.
+Qed.
+
+Lemma R_trans_R_id' : forall (R:𝓡), (R_trans R R_id) = R.
+Proof.
+  introv. apply functional_extensionality. intro.
+  apply functional_extensionality. intro.
+  unfold R_trans. unfold R_id.
+Admitted.
+
+(* #[derive(equations=no)] Equations rho_trans : rho -> rho -> option rho := *)
+(*   rho_trans [] [] := Some []; *)
+(*   rho_trans ((τ1, _, R__l, α__l)::ρ__l) ((_, τ3, R__r, α__r)::ρ__r) := *)
+(*       if (eq_skvar α__l α__r) *)
+(*       then option_map (fun ρ__zip => (τ1, τ3, (R_trans R__l R__r), α__l) :: ρ__zip) (rho_trans ρ__l ρ__r) *)
+(*       else None; *)
+(*   rho_trans _ _ := None. *)
+#[derive(equations=no)] Equations rho_trans : rho -> rho -> rho :=
+  rho_trans [] _  := [];
+  rho_trans _  [] := [];
+  rho_trans ((τ1, _, R__l, α__l)::ρ__l) ((_, τ3, R__r, α__r)::ρ__r) :=
+      if (eq_skvar α__l α__r)
+      then (τ1, τ3, (R_trans R__l R__r), α__l) :: rho_trans ρ__l ρ__r
+      else [].
+
+#[derive(equations=no)] Equations rho_id : rho -> rho :=
+  rho_id [] := [];
+  rho_id ((_, τ2, _, α) :: ρ) := ((τ2, τ2, R_id, α) :: rho_id ρ).
+#[derive(equations=no)] Equations rho_id' : rho -> rho :=
+  rho_id' [] := [];
+  rho_id' ((_, τ2, _, α) :: ρ) := ((τ2, τ2, R_id', α) :: rho_id' ρ).
+#[derive(equations=no)] Equations rho_id'' : rho -> rho :=
+  rho_id'' [] := [];
+  rho_id'' ((_, τ2, _, α) :: ρ) := ((τ2, τ2, R_id'' τ2, α) :: rho_id'' ρ).
+
+Lemma rho_trans_id : forall ρ, rho_trans ρ (rho_id ρ) = ρ.
+Proof.
+  intros. ind_rho ρ. crush. simpl+.
+  destruct (eq_skvar α α). 2:congruence. rewrite IHρ. simpl+.
+  rewrite R_trans_R_id'. crush.
+Qed.
+
+(* #[derive(equations=no)] Equations gamma_trans : gamma -> gamma -> option gamma := *)
+(*   gamma_trans [] [] := Some []; *)
+(*   gamma_trans ((t1, _, α__l)::ρ__l) ((_, t3, α__r)::ρ__r) := *)
+(*       if (eq_skvar α__l α__r) *)
+(*       then option_map (fun ρ__zip => (t1, t3, α__l) :: ρ__zip) (gamma_trans ρ__l ρ__r) *)
+(*       else None; *)
+(*   gamma_trans _ _ := None. *)
+#[derive(equations=no)] Equations gamma_trans : gamma -> gamma -> gamma :=
+  gamma_trans [] _  := [];
+  gamma_trans _  [] := [];
+  gamma_trans ((t1, _, α__l)::γ__l) ((_, t3, α__r)::γ__r) :=
+      if (eq_skvar α__l α__r)
+      then (t1, t3, α__l) :: (gamma_trans γ__l γ__r)
+      else [].
+
+#[derive(equations=no)] Equations gamma_id : gamma -> gamma :=
+  gamma_id [] := [];
+  gamma_id ((_, t2, α) :: γ) := ((t2, t2, α) :: gamma_id γ).
+
+Lemma gamma_trans_id : forall γ, gamma_trans γ (gamma_id γ) = γ.
+Proof. introv. ind_gamma γ. crush. simpl+. if_taut. Qed.
+
+(* Axiom rho_trans : rho -> rho -> rho. *)
+(* Axiom gamma_trans : gamma -> gamma -> gamma. *)
+
+Axiom rho_trans_π1 : forall ρ1 ρ2, π1 (rho_trans ρ1 ρ2) = π1 ρ1.
+Axiom rho_trans_π2 : forall ρ1 ρ2, π2 (rho_trans ρ1 ρ2) = π2 ρ2.
+#[local] Hint Rewrite rho_trans_π1 rho_trans_π2 : core.
+
+Axiom gamma_trans_π1 : forall γ1 γ2, π1 (gamma_trans γ1 γ2) = π1 γ1.
+Axiom gamma_trans_π2 : forall γ1 γ2, π2 (gamma_trans γ1 γ2) = π2 γ2.
+#[local] Hint Rewrite gamma_trans_π1 gamma_trans_π2 : core.
+
+
+Lemma closed_vals_trans: forall (σ : Sc) (v1 v2 v2' v3: Tm) (ρ1 ρ2 : rho),
+    closed_vals σ ρ1 v1 v2
+  -> closed_vals σ ρ2 v2' v3
+  -> closed_vals σ (rho_trans ρ1 ρ2) v1 v3.
+Proof.
+  introv [?IV [?IV [?TMTY ?TMTTY]]] [?IV [?IV [?TMTY ?TMTTY]]].
+  splits. 1,2:eassumption. simpl+. eassumption. simpl+. eassumption.
+Qed.
+
+Axiom rho_id_π1 : forall ρ, π1 (rho_id ρ) = π2 ρ.
+Axiom rho_id_π2 : forall ρ, π2 (rho_id ρ) = π2 ρ.
+Axiom rho_id'_π1 : forall ρ, π1 (rho_id' ρ) = π2 ρ.
+Axiom rho_id'_π2 : forall ρ, π2 (rho_id' ρ) = π2 ρ.
+Axiom rho_id''_π1 : forall ρ, π1 (rho_id'' ρ) = π2 ρ.
+Axiom rho_id''_π2 : forall ρ, π2 (rho_id'' ρ) = π2 ρ.
+#[local] Hint Rewrite rho_id_π1 rho_id_π2 rho_id'_π1 rho_id'_π2 rho_id''_π1 rho_id''_π2 : core.
+
+Axiom gamma_id_π1 : forall γ, π1 (gamma_id γ) = π2 γ.
+Axiom gamma_id_π2 : forall γ, π2 (gamma_id γ) = π2 γ.
+#[local] Hint Rewrite gamma_id_π1 gamma_id_π2 : core.
+
+(* Lemma logrel_val_id : forall σ v1 v2 ρ, *)
+(*     ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ (rho_id ρ) *)
+(*   -> v2 = v1. *)
+(* Proof. *)
+(*   intro σ. forall_ind σ. induction τ. *)
+(*   all:introv EQ; simp' in *; try destruct EQ as [CV EQ]. *)
+(*   - crush. *)
+(*   - clear CV. rho_ind ρ; simpl+ in EQ. crush. *)
+(*     if_taut. crush. *)
+(*   - crush. *)
+(*   - crush. *)
+(*   - simpl+ in EQ. *)
+(*     destruct EQ as [t1 [t2 [?EQ [?EQ EQ]]]]. subst. fequals. *)
+(* Abort. *)
+
+Lemma closed_vals_trans' : forall (σ : Sc) (v1 v2 v2' v3: Tm) (ρ : rho),
+    closed_vals σ ρ v1 v2
+  -> closed_vals σ (rho_id'' ρ) v2' v3
+  -> closed_vals σ ρ v1 v3.
+Admitted.
+
+Lemma closed_vals_id'' : forall (σ : Sc) (v1 v2 : Tm) (ρ : rho),
+    closed_vals σ ρ v1 v2
+  -> closed_vals σ (rho_id'' ρ) v2 v2.
+Admitted.
+
+Lemma logrel_rho_Rel : forall τ1 τ2 R α ρ ψ,
+    (τ1, τ2, R, α) :: ρ ∈ 𝒟⟦ψ⟧
+  -> Rel R τ1 τ2
+  /\ exists ψ', ρ ∈ 𝒟⟦ψ'⟧.
+Proof.
+  introv [γ IN]. gen γ. induction ψ; intros; try induction a; simp' in IN.
+  - crush.
+  - destruct IN as [τ1' [τ2' [R' [ρ' [EQ [RV [NIR IN]]]]]]]. inverts EQ.
+    split. jauto. exists. eassumption.
+  - destruct IN as [v1 [v2 [γ' [EQ [VAL [NIG IN]]]]]]. subst. eauto.
+Qed.
+
+Fact dom_rho_id' : forall ρ, dom_rho (rho_id' ρ) ⊆ dom_rho ρ. Admitted.
+Fact dom_rho_id'' : forall ρ, dom_rho (rho_id'' ρ) ⊆ dom_rho ρ. Admitted.
+Fact dom_gamma_id : forall γ, dom_gamma (gamma_id γ) ⊆ dom_gamma γ. Admitted.
+
+Lemma logrel_val_id : forall σ v1 v2 ρ,
+    ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ρ
+  -> (exists ψ, ρ ∈ 𝒟⟦ψ⟧)
+  -> ⦅v2 × v2⦆ ∈ 𝒱⟦σ⟧ rho_id'' ρ.
+Proof.
+  intro σ. forall_ind σ. induction τ.
+  all:introv EQ IN; simp' in *; destruct EQ as [CV EQ].
+  all: split; eauto using closed_vals_id''.
+  - clear CV. ind_rho ρ. crush.
+    destruct IN as [ψ IN]. apply logrel_rho_Rel in IN. destruct IN as [H__R IN].
+    simpl+ in *. if_taut. unfold R_id''.
+    unfold Rel in H__R. specializes H__R. eassumption. jauto.
+    specializes IHρ IN. crush. crush.
+  - crush.
+  - crush.
+  - destruct EQ as [t1 [t2 [?EQ [?EQ VAL]]]]. subst. exists. splits. 1,2:simpl+; reflexivity.
+    intros v1' v2' VAL'. destruct IN as [ψ [γ IN]].
+    admit.
+    (** Probleem: we krijgen hier ⦅v1' × v2'⦆ ∈ 𝒱⟦S__T τ1⟧ rho_id'' ρ binnen maar moeten ⦅v1' × v2'⦆ ∈ 𝒱⟦S__T τ1⟧ ρ produceren *)
+  - destruct EQ as [t1 [t2 [EQ1 [EQ2 EQ]]]]. subst. exists. splits. 1,2:reflexivity.
+    intros τ1 τ2 R. specializes EQ τ1 τ2 R. destruct EQ as [L EQ]. exists L.
+    introα. intro RV. specializes EQ NIL__α RV. destruct EQ as [TMTY1 [TMTY2 [v1 [v2 [OP1 [OP2 VAL]]]]]].
+    (** euh hier weet ik het ook niet *)
+    splits.
+Admitted.
+
+
+Lemma logrel_e_id : forall ψ ρ γ,
+    ⦅ρ, γ⦆ ∈ ⦅𝒟, 𝒢⦆⟦ψ⟧
+  -> ⦅rho_id'' ρ, gamma_id γ⦆ ∈ ⦅𝒟, 𝒢⦆⟦ψ⟧.
+Proof.
+  induction ψ. 2:ind_a a. all:introv IN; simp' in *.
+  - crush.
+  - destruct IN as [τ1 [τ2 [R [ρ' [EQ [RV [NIL__α IN]]]]]]].
+    exists. splits. subst. simpl+. crush. splits. 1,2:jauto. unfold R_id''. unfold Rel. intros. crush.
+    rewrite dom_rho_id''. fsetdec. eauto.
+  - destruct IN as [v1 [v2 [γ' [EQ [VAL [NIL__x IN]]]]]].
+    exists. splits. subst. crush.
+    eauto using logrel_val_id.  rewrite dom_gamma_id. assumption. eauto.
+Qed.
+
+Lemma logrel_val_trans : forall σ v1 v2 v3 ρ,
+    ⦅v1 × v2⦆ ∈ 𝒱⟦σ⟧ ρ
+  -> ⦅v2 × v3⦆ ∈ 𝒱⟦σ⟧ (rho_id'' ρ)
+  -> (exists ψ, ρ ∈ 𝒟⟦ψ⟧)
+  -> ⦅v1 × v3⦆ ∈ 𝒱⟦σ⟧ ρ.
+Proof.
+  intro σ. forall_ind σ. induction τ.
+  all:introv EQ1 EQ2 IN; simp' in *; destruct EQ1 as [CV1 EQ1]; destruct EQ2 as [CV2 EQ2].
+  all: split; eauto using closed_vals_trans'.
+  - clear CV1 CV2. ind_rho ρ. simpl+ in *. crush.
+    simpl+ in *. if_dec.
+    + unfold R_id'' in EQ2. subst. crush.
+    + destruct IN as [ψ [γ IN]].
+      forwards: logrel_rho_Rel. exists. eassumption.
+      eapply IHρ. crush. crush. crush.
+  - crush.
+  - crush.
+  - simpl+ in EQ1. destruct EQ1 as [t1  [t2 [?EQ [?EQ EQ1]]]].
+    simpl+ in EQ2. destruct EQ2 as [t2' [t3 [?EQ [?EQ EQ2]]]].
+    destruct IN as [ψ [γ IN]].
+    subst. inverts EQ3.
+    exists. splits. 1,2:reflexivity. intros v1 v2 VAL.
+    specializes EQ1 v1 v2. specializes EQ1. eassumption.
+      destruct EQ1 as [?TMTY [?TMTY [v1' [v2' [?OP [?OP VAL1]]]]]].
+    specializes EQ2 v2 v2. specializes EQ2. eapply logrel_val_id. eassumption. exists. eassumption.
+      destruct EQ2 as [?TMTY [?TMTY [v2'' [v3' [?OP [?OP VAL2]]]]]].
+      forwards: t_cl_deterministic OP1 OP0. jauto. jauto. subst.
+    splits. eassumption. eassumption.
+    exists. splits. eassumption. eassumption. eauto.
+  - simpl in EQ1. destruct EQ1 as [t1 [t2 [?EQ [?EQ EQ1]]]].
+    simpl in EQ2. destruct EQ2 as [t2' [t3 [?EQ [?EQ EQ2]]]].
+    subst. inverts EQ3.
+    exists. splits. 1,2:reflexivity. intros τ1 τ2 R.
+    specializes EQ1 τ1 τ2 R. destruct EQ1 as [L1 EQ1].
+    specializes EQ2 τ2 τ2 (R_id'' τ2). destruct EQ2 as [L2 EQ2].
+    exists (L1 ∪ L2 ∪ dom_rho ρ). intros α NIL__α RV.
+    specializes EQ1 α. specializes EQ1. fsetdec. jauto.
+      destruct EQ1 as [?TMTY [?TMTY [v1 [v2 [?OP [?OP VAL1]]]]]].
+    specializes EQ2 α. specializes EQ2. fsetdec. splits; jauto. unfold R_id''. unfold Rel. crush.
+      destruct EQ2 as [?TMTY [?TMTY [v2' [v3 [?OP [?OP VAL2]]]]]].
+      forwards: t_cl_deterministic OP1 OP0. jauto. jauto. subst.
+    splits. eassumption. applys_eq TMTY2. simpl+. reflexivity.
+    exists v1 v3. splits. eassumption. eassumption. eapply IHn. simpl+. crush. eassumption. eassumption.
+    destruct IN as [ψ [γ IN]].
+    exists (ψ ::a α :: []) γ. simp'. exists. splits. reflexivity. eassumption. fsetdec. simp'.
+Qed.
+
+Lemma EquivRel_trans : forall ψ t1 t2 t3 σ,
+    ψ ⊢t≈ t1 ≈ t2 ▸ σ
+  -> ψ ⊢t≈ t2 ≈ t3 ▸ σ
+  -> ψ ⊢t≈ t1 ≈ t3 ▸ σ.
+Proof.
+  introv EQ1 EQ2.
+  destruct EQ1 as [TMTY1 [TMTY2 EQ1]]. destruct EQ2 as [_ [TMTY3 EQ2]]. splits. eassumption. eassumption. introv IN.
+  (* rewrite <- (rho_trans_id ρ). rewrite <- (gamma_trans_id γ). simpl+. *)
+  specializes EQ1 ρ γ. specializes EQ1. eassumption.
+  specializes EQ2 (rho_id'' ρ) (gamma_id γ). specializes EQ2. auto using logrel_e_id.
+  destruct EQ1 as [CLTMTY1 [CLTMTY2 [v1 [v2 [OP1 [OP2 VAL1]]]]]].
+  destruct EQ2 as [CLTMTY2' [CLTMTY3 [v2' [v3 [OP2' [OP3 VAL2]]]]]]. simpl+ in *.
+  simpl+. splits. 1,2:simpl+; eassumption.
+  exists v1 v3. splits. 1,2: eassumption.
+  forwards: t_cl_deterministic OP2 OP2'. jauto. jauto. subst.
+  eauto using logrel_val_trans.
+Qed.
+
+(*** Lemmas *)
+Lemma SubSumpTm_rewrite_equiv : forall σ t__in' ψ t__in t__out τ,
+    SubSumpTm ψ t__in σ t__out τ
+  -> ψ ⊢t≈ t__in ≈ t__in' ▸ σ
+  -> exists t__out',
+      SubSumpTm ψ t__in' σ t__out' τ
+    /\ ψ ⊢t≈ t__out' ≈ t__out ▸ (S__T τ).
+Proof.
+  introv SS EQ. gen t__in'. induction SS; intros. exists. split. econstructor. eauto using EquivRel_symm.
+  specializes IHSS. eapply CompatTApp. eassumption. eassumption.
+  destruct IHSS as [t__out' [SS' EQ']].
+  exists. split. econstructor. eassumption. eassumption. eassumption.
+Qed.
+
+Lemma Equivrel_Reduce_TLam : forall ψ t τ σ,
+    ψ ⊢t t__TApp (t__TLam t) τ ▸ σ
+  -> ψ ⊢t≈ t__TApp (t__TLam t) τ ≈ open_Tm_wrt_T t τ ▸ σ.
+Proof.
+  introv TMTY1.
+  assert (TMTY2: ψ ⊢t open_Tm_wrt_T t0 τ ▸ σ).
+  inverts TMTY1. inverts TMTY.
+  forwards [α NIL__α]: atom_fresh (L ∪ E_skvars ψ ∪ fv__α(t0) ∪ fv__α(σ0)). specializes TMTY0 α. specializes TMTY0. fsetdec.
+  eapply (TmTy_subst_skvar_binding_E_head τ) in TMTY0. 2:eassumption. 2:fsetdec. applys_eq TMTY0.
+  rewrite subst_skvar_Tm_open_Tm_wrt_T. 2:crush. simpl+. if_taut. subst_notin.
+  rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:crush. simpl+. if_taut. subst_notin.
+  (**)
+  intros. splits. 1,2:assumption. intros. splits. 1,2:eauto using TmTy_close1, TmTy_close2.
+  (**)
+  forwards [_ [_ FP]]: FundamentalProperty TMTY2. specializes FP H.
+  destruct FP as [_ [_ [v1 [v2 [OP1 [OP2 VAL]]]]]].
+  (**)
+  exists v1 v2. splits. 2,3:assumption.
+  econstructor. simpl+. econstructor. applys_eq OP1.
+  rewrite Subx_app_open_Tm_wrt_T. 2:eauto.
+  rewrite Sub_app_open_Tm_wrt_T. 2:eauto. reflexivity.
+Qed.
+
+Lemma subst_skvar_Sc_Sub_app_notin_or_eq : forall α τ1 τ2 θ1 θ2 (σ:Sc),
+    {τ1 ≔ α}⟦θ1 ▹ σ⟧ = {τ2 ≔ α}⟦θ2 ▹ σ⟧
+  -> α ∉ dom_Sub θ1
+  -> α ∉ dom_Sub θ2
+  -> α ∉ fv__α(σ) \/ τ1 = τ2.
+Proof.
+  introv EQ NID1 NID2. induction σ. induction τ.
+  all:simpl+ in EQ; inverts EQ.
+  - left. simpl+. fsetdec.
+  - destruct (α0 == α).
+    + right. subst.
+      rewrite Sub_app_T_notindom in H0. 2:simpl+; fsetdec.
+      rewrite Sub_app_T_notindom in H0. 2:simpl+; fsetdec.
+      simpl+ in H0. if_taut.
+    + left. simpl+. fsetdec.
+  - left. simpl+. fsetdec.
+  - left. simpl+. fsetdec.
+  - specializes IHτ1. simpl+. fequals. destruct IHτ1. 2:jauto.
+    specializes IHτ2. simpl+. fequals. destruct IHτ2. 2:jauto.
+    left. simpl+. fsetdec.
+  - simpl+. crush.
+Qed.
+
+Lemma Sub_app_T_subst_skvar_T : forall τ α (θ:Sub) (τ':T),
+    α ∉ skvars_codom_Sub θ ∪ dom_Sub θ
+  -> fv__α(τ) ∐ dom_Sub θ
+  -> {τ ≔ α}⟦θ ▹ τ'⟧ = ⟦θ ▹ {τ ≔ α} τ'⟧.
+Proof.
+  intros. forwards: Sub_app_Sc_subst_skvar_Sc τ α θ (S__T τ'). fsetdec. disj_union. assumption. simpl+. fsetdec.
+  simpl+ in H1. crush.
+Qed.
+
+Axiom Sub_unique : Sub -> Prop.
+
+Fact wf_Sub_cons : forall α τ ψ θ,
+    ψ ⊢θ θ
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢θ (τ, α) :: θ.
+Proof. introv WFS WFT. norm. apply wf_Sub_app. split. unfolds. intros. simpl+ in H. T_facts.simpl_singleton. crush. crush. Qed.
+
+
+Lemma SubSump_Sub : forall a ψ τ1 τ2,
+    SubSump ψ (∀ a⬪ S__T τ1) τ2
+  -> FrA a (E_A_skvars ψ)
+  -> exists θ,
+      Sub_to_A θ = a
+    /\ ψ ⊢θ θ
+    /\ ⟦θ ▹ τ1⟧ = τ2.
+Proof.
+  intro a. ind_a a; simpl+; introv SS FR; inverts SS.
+  - exists ([]:Sub). crush.
+  - inverts FR. inverts H.  simpl+ in H0.
+    rewrite <- subst_skvar_Sc_spec in SS0.
+    rewrite subst_skvar_Sc_close_Sc_wrt_A in SS0. 2:eauto. 2:eauto.
+    2:rewrite WfT_sk; try eassumption; symmetry; disj_sub.
+    specializes IHa SS0. destruct IHa as [θ [SWF [EQ1 EQ2]]]. split. eassumption. disj_sub.
+    subst. exists ((τ0, α) :: θ). simpl+. splits.
+    + crush.
+    + auto using wf_Sub_cons.
+    + dist. apply Sub_app_T_subst_skvar_T.
+      * apply notin_a_notin_varl in H3. rewrite varl_Sub_to_A_dom in H3.
+        rewrite wf_Sub_codom. 2:eassumption. apply notin_union_iff.
+        in_disj. fsetdec.
+      * rewrite varl_Sub_to_A_dom in H0. rewrite WfT_sk. 2:eassumption. symmetry. disj_sub.
+Qed.
+
+Lemma Sub_to_A_codom : forall θ1 θ2,
+    Sub_to_A θ1 = Sub_to_A θ2
+  -> dom_Sub θ1 = dom_Sub θ2.
+Proof.
+  (* intros. do 2 rewrite <- varl_Sub_to_A_dom. rewrite H. *)
+  (** why do we have to induct, I cannot rewrite with the equality?? *)
+  intro θ1. ind_Sub θ1; intros; destruct θ2; simpl+ in H; inverts H. crush. simpl+. erewrite IHθ1. 2:eassumption. crush.
+Qed.
+
+(*** Actual prop *)
+Lemma SubSump'_SubSumpTm' : forall ψ σ1 σ2,
+    SubSump' ψ σ1 σ2
+  -> forall t1, exists t2, SubSumpTm' ψ t1 σ1 t2 σ2.
+Proof.
+  introv SS. induction SS. induction SS.
+  all:intro t1.
+  - exists. crush.
+  - specializes IHSS (t__TApp t1 τ1). destruct IHSS as [t2 SST]. inverts SST.
+    eauto.
+  - forwards [α NIL__α]: atom_fresh (L ∪ E_skvars ψ ∪ fv__α(t1) ∪ fv__α(σ1) ∪ fv__α(σ2)).
+    specializes H α. specializes H. fsetdec.
+    destruct H as [t2 SST]. exists. applys SST'__R {{α}}. intros β NIL__β.
+    eapply (SubSumpTm'_rename_skvar α β) in SST. applys_eq SST; symmetry.
+    + simpl+. fequals. apply rename_skvar_E_notin. fsetdec.
+    + clear - NIL__α. subst_notin.
+    + clear - NIL__α. subst_notin.
+    + rewrite subst_skvar_Tm_spec. reflexivity.
+    + rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:crush. simpl+. if_taut. fequals.
+      clear - NIL__α. subst_notin.
+Qed.
+
+Ltac checked_admit := admit.
+Lemma SubSumpTm'_Forall_A_equiv_Lambda_A : forall a2 a1 ψ t1 τ θ,
+    SubSump' ψ (∀ a1⬪ (S__T τ)) (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+  -> Sub_to_A θ = a1
+  -> ψ ⊢t (Λ (Sub_to_A θ)⬪ t1) ▸ (∀ (Sub_to_A θ)⬪ (S__T τ))
+  -> a1 ### E_A_skvars ψ
+  -> ψ ⊢θ θ
+  -> dom_Sub θ ∐ skvars_codom_Sub θ
+  -> fv__α(τ) ⊆ dom_Sub θ
+  -> varl a2 ∐ dom_Sub θ
+  -> exists t2,
+      SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t1) (∀ (Sub_to_A θ)⬪ (S__T τ)) t2 (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    /\ ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t1⟧ ≈ t2 ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Proof.
+  intro a2. ind_a a2.
+  introv SS EQ__θ. inverts SS. simpl+.
+  gen θ τ t1. ind_a a1; introv EQ__θ SS TMTY FR WFS DISJ__dom SUB__τ DISJ__a2; destruct θ as [|[τ__β β] θ]; simpl+ in EQ__θ; inverts EQ__θ.
+  - simpl+ in *. exists. eauto using FundamentalProperty.
+  - admit.
+  - introv SS EQ__θ TMTY FR WFS DISJ__θ SUB__τ DISJ__a2. inverts SS.
+    forwards [β NIL__β]: atom_fresh L.
+    specializes SS0 β. specializes SS0. fsetdec. rewrite <- subst_skvar_Sc_spec in SS0.
+    rewrite subst_skvar_Sc_close_Sc_wrt_A in SS0. 2:crush. 2,3:checked_admit.
+    simpl+ in SS0. rewrite rename_skvar_Sub_Sub_app_T' in SS0. 2,3:checked_admit.
+    (**)
+    forwards [t2 [SST EQUIV]]: IHa2 (Λ Sub_to_A θ ⬪ t1) SS0.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+    (**)
+    exists. splits.
+    + simpl+. applys SST'__R L. intros β' NIL__β'. admit.
+    + admit.
+Abort.
+
+
+
+
+  (* - introv SS TMTY__in DISJ FRA. inverts SS. rename t0 into t. *)
+  (*   simpl+. applys CompatTLam (L ∪ {{α}}). *)
+  (*   intros β NIL__β. *)
+  (*   rewrite <- subst_skvar_Sc_spec in *. *)
+  (*   rewrite <- subst_skvar_Tm_spec in *. *)
+  (*   rewrite subst_skvar_Tm_close_Tm_wrt_A. 2,3,4:admit. *)
+  (*   rewrite rename_skvar_Sub_Sub_app_Tm'. 2:admit. 2:admit. *)
+  (*   (**) *)
+  (*   rewrite subst_skvar_Sc_close_Sc_wrt_A. 2,3,4:admit. *)
+  (*   simpl+. *)
+  (*   rewrite rename_skvar_Sub_Sub_app_T'. 2:admit. 2:admit. *)
+  (*   (**) *)
+  (*   eapply IHa2. *)
+  (*   + specializes SS0 β. specializes SS0. fsetdec. *)
+  (*     applys_eq SS0. *)
+  (*     * fequals. apply rename_skvar_Sub_Sub_to_A_notin. admit. *)
+  (*     * fequals. apply rename_skvar_Sub_Sub_to_A_notin. admit. *)
+  (*     * rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2,3,4:admit. *)
+  (*       simpl+. rewrite rename_skvar_Sub_Sub_app_T'. 2:admit. 2:admit. reflexivity. *)
+  (*   + admit. *)
+  (*   + admit. *)
+  (*   + admit. *)
+
+
+  (* - assert (Sub_to_A θ = Sub_to_A θ). reflexivity. specializes IHa1 H. clear H. *)
+  (*   inverts SS. rename SS0 into SS. rewrite <- subst_skvar_Sc_spec in SS. simpl+ in DISJ__dom. *)
+  (*   (** Freshness and stuff *) *)
+  (*   assert (NIL__α: α ∉ dom_Sub θ ∪ skvars_codom_Sub θ ∪ E_A_skvars ψ ∪ varl (Sub_to_A θ)). *)
+  (*   { inverts FR. rename H into ND. rename H0 into DISJ. simpl+ in DISJ. *)
+  (*     assert (α ∉ dom_Sub θ). *)
+  (*       inverts ND. apply notin_a_notin_varl in H1. rewrite varl_Sub_to_A_dom in H1. fsetdec. *)
+  (*     assert (α ∉ skvars_codom_Sub θ). clear - DISJ__dom. *)
+  (*       applys in_disj1 {{α}}. eapply atoms_facts.disjoint_Subset. eassumption. fsetdec. fsetdec. fsetdec. *)
+  (*     assert (α ∉ E_A_skvars ψ). in_disj. *)
+  (*     (* assert (α ∉ fv__α(τ)). rewrite WfT_sk. admit. admit. *) *)
+  (*     rewrite varl_Sub_to_A_dom. fsetdec. *)
+  (*   } *)
+  (*   assert (WFT__β: ψ ⊢wfτ τ__β). eapply WFS. simpl+. fsetdec. *)
+  (*   assert (DISJ: E_A_skvars ψ ∪ fv__α(τ1) ∪ fv__α(τ__β) ∐ dom_Sub θ). *)
+  (*   { inverts FR. rename H into ND. rename H0 into DISJ. simpl+ in DISJ. symmetry. *)
+  (*     rewrite WfT_sk. 2:eassumption. rewrite WfT_sk. 2:eassumption. clear - DISJ. disj_sub. } *)
+  (*   (** Commutativity *) *)
+  (*   assert (COMM0: ∀ Sub_to_A θ ⬪ S__T ({τ1 ≔ α}τ) = {τ1 ≔ α}(∀ Sub_to_A θ ⬪ S__T τ)). *)
+  (*     rewrite subst_skvar_Sc_close_Sc_wrt_A. reflexivity. eauto. fsetdec. *)
+  (*     rewrite varl_Sub_to_A_dom. clear - DISJ; disj_sub. *)
+  (*   assert (EQ__τ: α ∉ fv__α(τ) \/ τ1 = τ__β). *)
+  (*   { forwards [θ' [EQ1 [WF__θ' EQ2]]]: SubSump_Sub. rewrite COMM0. eassumption. eauto. *)
+  (*     forwards DOM: Sub_to_A_codom EQ1. *)
+  (*     forwards: subst_skvar_Sc_Sub_app_notin_or_eq θ' θ (S__T τ). 4:applys_eq H. *)
+  (*     - simpl+. fequals. applys_eq EQ2. rewrite subst_skvar_T_Sub_app_T. reflexivity. rewrite DOM. *)
+  (*       rewrite wf_Sub_codom. 2:eassumption. fsetdec. rewrites WfT_sk. 2:eassumption. *)
+  (*       rewrite DOM. clear - DISJ; disj_sub. *)
+  (*     - rewrite DOM. fsetdec. *)
+  (*     - fsetdec. *)
+  (*   } *)
+  (*   assert (COMM1: ∀ Sub_to_A θ ⬪ S__T ({τ__β ≔ α}τ) = {τ1 ≔ α}(∀ Sub_to_A θ ⬪ S__T τ)). *)
+  (*     rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:eauto. 2:fsetdec. 2:clear - DISJ; disj_sub. *)
+  (*     destruct EQ__τ. *)
+  (*     subst_notin'. 2:fsetdec. subst_notin'. simpl+. fsetdec. *)
+  (*     subst. reflexivity. *)
+  (*   assert (COMM2: ∀ Sub_to_A θ ⬪ S__T ({τ__β ≔ α}τ) = {τ__β ≔ α}(∀ Sub_to_A θ ⬪ S__T τ)). *)
+  (*     rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:eauto. 2:fsetdec. 2:clear - DISJ; disj_sub. reflexivity. *)
+  (*   assert (COMM3: ⟦θ ▹ {τ__β ≔ α}τ⟧ = ⟦(τ__β, α) :: θ ▹ τ⟧). *)
+  (*     dist. rewrite subst_skvar_T_Sub_app_T. reflexivity. fsetdec. clear - DISJ; disj_sub. *)
+  (*   assert (COMM4: ⟦θ ▹ {τ__β ≔ α}t1⟧ = ⟦(τ__β, α) :: θ ▹ t1⟧). *)
+  (*     dist. rewrite subst_skvar_Tm_Sub_app_Tm. reflexivity. fsetdec. clear - DISJ; disj_sub. *)
+  (*   assert (COMM5: (Λ Sub_to_A θ ⬪ {τ__β ≔ α}t1) = {τ__β ≔ α}(Λ Sub_to_A θ ⬪ t1)). *)
+  (*     rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:eauto. 2:fsetdec. 2:clear - DISJ; disj_sub. *)
+  (*     reflexivity. *)
+  (*   (*actual proof*) *)
+  (*   assert (TMTY__IH: ψ ⊢t Λ Sub_to_A θ ⬪ {τ__β ≔ α}t1 ▸ (∀ Sub_to_A θ ⬪ S__T ({τ__β ≔ α}τ))). *)
+  (*     simpl+ in TMTY. rewrite COMM5. rewrite COMM2. eapply TmTy_TLam_subst. eassumption. auto. *)
+  (*   assert (TMTY__rewr: ψ ⊢t t__TApp (t__TLam (close_Tm_wrt_T α (Λ Sub_to_A θ ⬪ t1))) τ__β ▸ (∀ Sub_to_A θ ⬪ S__T ({τ__β ≔ α}τ))). *)
+  (*     simpl+ in TMTY. rewrite COMM2. rewrite subst_skvar_Sc_spec. econstructor. eassumption. eassumption. *)
+  (*   specializes IHa1 ({τ__β ≔ α}τ) ({τ__β ≔ α}t1). applys_eq SS. assumption. assumption. *)
+  (*   destruct IHa1 as [t2 [SS__IH EQUIV]]. assumption. eauto. eauto. clear - DISJ__dom. disj_sub. inverts SS__IH. rename SS0 into SS__IH. *)
+  (*   forwards [t2' [SS__IH' EQUIV']]: SubSumpTm_rewrite_equiv (t__TApp (t__TLam (close_Tm_wrt_T α (Λ Sub_to_A θ ⬪ t1))) τ__β) SS__IH. *)
+  (*     eapply EquivRel_symm. applys_eq Equivrel_Reduce_TLam. *)
+  (*     rewrite <- subst_skvar_Tm_spec. assumption. assumption. *)
+  (*   exists. splits. simpl+. *)
+  (*     econstructor. econstructor. apply WFT__β. applys_eq SS__IH'. *)
+  (*     rewrite <- subst_skvar_Sc_spec. crush. crush. *)
+  (*     eapply EquivRel_trans. applys_eq EQUIV. clear - COMM3. crush. crush. *)
+  (*     eapply EquivRel_symm. applys_eq EQUIV'. clear - COMM3. crush. *)
+
+
+Abort.
+
+Lemma SubSumpTm'_Forall_A_equiv_Lambda_A : forall a2 ψ t τ t' θ,
+      SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t) (∀ (Sub_to_A θ)⬪ (S__T τ)) t' (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    -> ψ ⊢t (Λ (Sub_to_A θ)⬪ t) ▸ (∀ (Sub_to_A θ)⬪ (S__T τ))
+    -> dom_Sub θ ∐ varl a2
+    -> (Sub_to_A θ) ### E_skvars ψ
+    -> ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t⟧ ≈ t' ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Proof.
+  intro a2. ind_a a2.
+  introv SS TMTY__in DISJ FRA. inverts SS. clear DISJ. simpl+.
+  gen ψ t0 τ t'. ind_Sub θ; intros; inverts SS0.
+  - simpl+. apply FundamentalProperty. assumption.
+  - simpl+ in SS. simpl+ in FRA.
+    apply FrA_cons in FRA. destruct FRA as [FRA NIL__α']. rewrite varl_Sub_to_A_dom in NIL__α'.
+    assert (NIL__α: α ∉ E_skvars ψ ∪ dom_Sub θ ∪ varl (Sub_to_A θ)).
+      rewrite varl_Sub_to_A_dom. fsetdec.
+      clear NIL__α'.
+    assert (fv__α(t0) ⊆ dom_Sub θ). admit.
+    rewrite <- subst_skvar_Sc_spec in SS.
+    assert (H__IN:  α ∉ fv__α(τ0) \/ τ1 = τ). admit.
+    (* { forwards [θ' [EQ SS']]: SubSumpTm_Sub_τ. applys_eq SS. admit. *)
+    (*   rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:eauto. 2:fsetdec. 2:admit. reflexivity. *)
+    (*   rewrite <- subst_skvar_T_Sub_app_T in SS'. 2,3:admit. *)
+    (*   forwards: subst_skvar_Sc_Sub_app_notin_or_eq τ1 τ (S__T τ0). simpl+. fequals. apply SS'. *)
+    (*   admit. admit. eassumption. *)
+    (* } *)
+    destruct H__IN as [NIT|EQ].
+    + simpl+.
+      specializes IHθ ψ ({τ1 ≔ α}t0) ({τ1 ≔ α}τ0). specializes IHθ. admit.
+      forwards [t'' [SS' EQ]]: SubSumpTm_rewrite_equiv ({τ1 ≔ α}(Λ Sub_to_A θ ⬪ t0)) SS.
+        applys_eq Equivrel_Reduce_TLam.
+        rewrite <- subst_skvar_Tm_spec. reflexivity.
+        simpl+ in TMTY__in. rewrite subst_skvar_Sc_spec. econstructor. eassumption. eassumption.
+        applys_eq SS'.
+        rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:eauto. 2,3:admit. reflexivity.
+        rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:eauto. 2,3:admit. reflexivity.
+        admit. admit.
+      applys_eq IHθ. admit. admit.
+    + subst.
+      assert (DISJ: fv__α(τ) ∐ varl (Sub_to_A θ)).
+        inverts FRA. rewrite WfT_sk. 2:eassumption. symmetry. disj_sub.
+      forwards [t'' [SS' EQ]]: SubSumpTm_rewrite_equiv ({τ ≔ α}(Λ Sub_to_A θ ⬪ t0)) SS.
+        applys_eq Equivrel_Reduce_TLam.
+        rewrite <- subst_skvar_Tm_spec. reflexivity.
+        simpl+ in TMTY__in. rewrite subst_skvar_Sc_spec. econstructor. eassumption. eassumption.
+      specializes IHθ ψ ({τ ≔ α}t0) ({τ ≔ α}τ0). specializes IHθ.
+        dist in TMTY__in. applys_eq TmTy_TLam_subst. 3:eassumption.
+        rewrite subst_skvar_Tm_close_Tm_wrt_A; eauto.
+        rewrite subst_skvar_Sc_close_Sc_wrt_A; eauto.
+        assumption.
+        applys_eq SS'.
+        rewrite subst_skvar_Tm_close_Tm_wrt_A. 2:eauto. 2,3:admit. reflexivity.
+        rewrite subst_skvar_Sc_close_Sc_wrt_A. 2:eauto. 2,3:admit. reflexivity.
+        dist. rewrite subst_skvar_T_Sub_app_T. 2,3:admit. crush.
+      eapply EquivRel_trans. applys_eq IHθ. 3:applys_eq EQ.
+        fequals. dist. rewrite subst_skvar_T_Sub_app_T. 2,3:admit. crush.
+        dist. rewrite subst_skvar_Tm_Sub_app_Tm. 2,3:admit. crush.
+  - introv SS TMTY__in DISJ FRA. inverts SS. rename t0 into t.
+    simpl+. applys CompatTLam (L ∪ {{α}}).
+    intros β NIL__β.
+    rewrite <- subst_skvar_Sc_spec in *.
+    rewrite <- subst_skvar_Tm_spec in *.
+    rewrite subst_skvar_Tm_close_Tm_wrt_A. 2,3,4:admit.
+    rewrite rename_skvar_Sub_Sub_app_Tm'. 2:admit. 2:admit.
+    (**)
+    rewrite subst_skvar_Sc_close_Sc_wrt_A. 2,3,4:admit.
+    simpl+.
+    rewrite rename_skvar_Sub_Sub_app_T'. 2:admit. 2:admit.
+    (**)
+    eapply IHa2.
+    + specializes SS0 β. specializes SS0. fsetdec.
+      applys_eq SS0.
+      * fequals. apply rename_skvar_Sub_Sub_to_A_notin. admit.
+      * fequals. apply rename_skvar_Sub_Sub_to_A_notin. admit.
+      * rewrite <- subst_skvar_Sc_spec. rewrite subst_skvar_Sc_close_Sc_wrt_A. 2,3,4:admit.
+        simpl+. rewrite rename_skvar_Sub_Sub_app_T'. 2:admit. 2:admit. reflexivity.
+    + admit.
+    + admit.
+    + admit.
+Abort.
+
+
+Lemma SubSumpTm_whatever : forall ψ t σ t' τ',
+    SubSumpTm ψ t σ t' τ'
+  -> ψ ⊢t t ▸ σ
+  -> ψ ⊢t t' ▸ (S__T τ').
+Proof.
+  introv SST TMTY. induction SST. assumption.
+  applys_eq IHSST. econstructor. eassumption. eassumption.
+Qed.
+
+Check fold_right.
+Check fold_right (fun (τ:T) (t:Tm) => t__TApp t τ).
+
+Definition apply_t_list : Tm -> list T -> Tm := fold_right (fun (τ:T) (t:Tm) => t__TApp t τ).
+
+Lemma apply_t_list_app : forall t τs1 τs2,
+    apply_t_list t (τs1 ++ τs2) = apply_t_list (apply_t_list t τs2) τs1.
+Proof. induction τs1; crush. Qed.
+#[local] Hint Rewrite apply_t_list_app : core.
+
+Lemma SubSumpTm_app_t_list : forall ψ t σ t' τ',
+    SubSumpTm ψ t σ t' τ'
+  -> exists (τs : list T),
+      t' = apply_t_list t τs.
+Proof.
+  introv SST. induction SST. exists ([]:list T). crush.
+  destruct IHSST as [τs EQ]. subst. exists (τs ++ [τ1]). simpl+. crush.
+Qed.
+
+
+Lemma SubSumpTm'_Forall_A_equiv_Lambda_A : forall a2 ψ t τ t' θ,
+      SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t) (∀ (Sub_to_A θ)⬪ (S__T τ)) t' (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    -> ψ ⊢t (Λ (Sub_to_A θ)⬪ t) ▸ (∀ (Sub_to_A θ)⬪ (S__T τ))
+    -> dom_Sub θ ∐ varl a2
+    -> (Sub_to_A θ) ### E_skvars ψ
+    -> ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t⟧ ≈ t' ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Proof.
+  intro a2. ind_a a2. 2:admit.
+  introv SS TMTY__in DISJ FRA. inverts SS. clear DISJ FRA TMTY__in. simpl+.
+  remember (Sub_to_A θ) as a1. rename t0 into t1. rename t' into t2.
+  gen θ τ t1. induction a1; intros. admit. destruct θ as [|[τ__β β] θ]; simpl+ in Heqa1; inverts Heqa1.
+  specializes IHa1 θ. assert (Sub_to_A θ = Sub_to_A θ). reflexivity. specializes IHa1 H. clear H. remember (Sub_to_A θ) as a1.
+  (* forwards [τs EQ]: SubSumpTm_app_t_list. apply SS0. *)
+
+  inverts SS0. rewrite <- subst_skvar_Sc_spec in SS.
+
+  assert (β ∉ fv__α(τ)). admit.
+
+  (** OK hier is het probleem. Als β niet in τ voorkomt, dan is de keuze voor τ__β dus arbitrair. Maar, omdat θ in de conclusie voorkomt, en voor termen niet arbitrair is, hebben we een probleem. *)
+Abort.
+
+
+
+
+
+
+Lemma SubSump'_SubSumpTm' : forall ψ σ1 σ2,
+    SubSump' ψ σ1 σ2
+  -> forall t1, exists t2, SubSumpTm' ψ t1 σ1 t2 σ2.
+
+Lemma SubSump'_SubSumpTm' : forall ψ σ1 σ2,
+    SubSump' ψ σ1 σ2
+  -> forall t1, exists t2, SubSumpTm' ψ t1 σ1 t2 σ2.
+Proof.
+  introv SS. induction SS. induction SS.
+  all:intro t1.
+  - exists. crush.
+  - specializes IHSS (t__TApp t1 τ1). destruct IHSS as [t2 SST]. inverts SST.
+    eauto.
+  - forwards [α NIL__α]: atom_fresh (L ∪ E_skvars ψ ∪ fv__α(t1) ∪ fv__α(σ1) ∪ fv__α(σ2)).
+    specializes H α. specializes H. fsetdec.
+    destruct H as [t2 SST]. exists. applys SST'__R {{α}}. intros β NIL__β.
+    eapply (SubSumpTm'_rename_skvar α β) in SST. applys_eq SST; symmetry.
+    + simpl+. fequals. apply rename_skvar_E_notin. fsetdec.
+    + clear - NIL__α. subst_notin.
+    + clear - NIL__α. subst_notin.
+    + rewrite subst_skvar_Tm_spec. reflexivity.
+    + rewrite subst_skvar_Sc_open_Sc_wrt_T. 2:crush. simpl+. if_taut. fequals.
+      clear - NIL__α. subst_notin.
+Qed.
+
+Lemma SubSump'_Forall_A_equiv_Lambda_A : forall a2 ψ t τ θ,
+      SubSump' ψ (∀ (Sub_to_A θ)⬪ (S__T τ)) (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+    -> ψ ⊢t (Λ (Sub_to_A θ)⬪ t) ▸ (∀ (Sub_to_A θ)⬪ (S__T τ))
+    -> dom_Sub θ ∐ varl a2
+    -> (Sub_to_A θ) ### E_skvars ψ
+    -> exists t', SubSumpTm' ψ (Λ (Sub_to_A θ)⬪ t) (∀ (Sub_to_A θ)⬪ (S__T τ)) t' (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧)
+          /\ ψ ⊢t≈ Λ a2⬪ ⟦θ ▹ t⟧ ≈ t' ▸ (∀ a2⬪ ⟦θ ▹ (S__T τ)⟧).
+Proof.
+  introv SS TMTY DISJ FRA.
+  forwards [t' SST]: SubSump'_SubSumpTm' (Λ Sub_to_A θ ⬪ t0). eassumption.
+  exists t'. split. assumption. eauto using SubSumpTm'_Forall_A_equiv_Lambda_A.
+Qed.

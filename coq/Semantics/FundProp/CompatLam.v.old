@@ -1,0 +1,224 @@
+Set Warnings "-notation-overridden,-intuition-auto-with-star".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.Lc.
+Require Import Defs.Sub.
+Require Import Defs.Subx.
+Require Import Defs.TmTy.
+
+Require Import Semantics.ClosedVals.
+Require Import Semantics.gammaDef.
+Require Import Semantics.EquivRel.
+Require Import Semantics.LogRel.
+Require Import Semantics.LogRelEProps.
+Require Import Semantics.logrel_val_props.
+Require Import Semantics.Opsem.
+Require Import Semantics.rhoDef.
+
+Lemma CompatLam__commhelper : forall θ θ__x t1 t2 x,
+    lc(t2)
+  -> x ∉ (fv__x(⟦θ__x ▹__x t1⟧) ∪ dom_Subx θ__x)
+  -> fv__α(t2) ∐ dom_Sub θ
+  -> lc__x(θ__x)
+  -> open_Tm_wrt_Tm ⟦θ ▹ ⟦θ__x ▹__x t1⟧⟧ t2 = ⟦θ ▹ {t2 ≔__x x}⟦θ__x ▹__x open_Tm_wrt_Tm t1 (t__Var_f x)⟧⟧.
+Proof.
+  introv LC NIS LCX DISJ.
+  rewrite Subx_app_open_Tm_wrt_Tm. 2:assumption. 2:symmetry; simpl+; fsetdec.
+  rewrite subst_tvar_Tm_open_Tm_wrt_Tm. 2:assumption.
+  rewrite subst_tvar_Tm_notin. 2:fsetdec. simpl+. if_taut.
+  setoid_rewrite Sub_app_Tm_notindom at 3. reflexivity. assumption.
+Qed.
+
+(* Module tvars_codom_Subx_alg <: List_to_Set_alg Atom AtomSetImpl. *)
+(*   Definition elt := (Tm * atom)%type. *)
+(*   Definition f : elt -> atoms := (ftv_Tm ∘ fst). *)
+(* End tvars_codom_Subx_alg. *)
+(* #[export] Hint Unfold tvars_codom_Subx_alg.elt tvars_codom_Subx_alg.f : algs. *)
+
+(* Module Export Tvars_codom_Subx := List_to_Set Atom AtomSetImpl tvars_codom_Subx_alg. *)
+(* Notation tvars_codom_Subx := Tvars_codom_Subx.List_to_Set. *)
+
+(* Lemma Subx_app_t_subst_tvar_t : forall (θ:Subx) t__in x t, *)
+(*     x ∉ tvars_codom_Subx θ *)
+(*   -> fv__x(t__in) ∪ {{x}} ∐ dom_Subx θ *)
+(*   -> {t__in ≔__x x}⟦θ ▹__x t⟧ = ⟦θ ▹__x {t__in ≔__x x} t⟧. *)
+(* Proof. *)
+(*   introv NICD DISJ. ind_Subx θ. crush. dist. rewrite <- IHθ. *)
+(*   - rewrite subst_tvar_Tm_subst_tvar_Tm. *)
+(*     + fequals. apply subst_tvar_Tm_notin. simpl+ in NICD. fsetdec. *)
+(*     + simpl+ in DISJ. clear - DISJ. fsetdec+. *)
+(*     + simpl+ in DISJ. intro. subst. eapply (in_disj x). eassumption. all:clfsetdec. *)
+(*   - simpl+ in NICD. fsetdec. *)
+(*   - simpl+ in DISJ. disj_sub. *)
+(* Qed. *)
+
+(* Lemma CompatLam__commhelper' : forall θ θ__x t1 t2 x, *)
+(*   (*   lc(t2) *) *)
+(*   (* -> x ∉ (fv__x(⟦θ__x ▹__x t1⟧) ∪ dom_Subx θ__x) *) *)
+(*   (* -> fv__α(t2) ∐ dom_Sub θ *) *)
+(*   (* -> lc__x(θ__x) *) *)
+(*   (* -> *) *)
+(*     open_Tm_wrt_Tm ⟦θ ▹ ⟦θ__x ▹__x t1⟧⟧ t2 = ⟦θ ▹ {t2 ≔__x x}⟦θ__x ▹__x open_Tm_wrt_Tm t1 (t__Var_f x)⟧⟧. *)
+(* Proof. *)
+(*   introv. *)
+(*   rewrite Subx_app_t_subst_tvar_t. 2,3:admit. *)
+(*   rewrite subst_tvar_Tm_open_Tm_wrt_Tm. 2:admit. simpl+. if_taut. *)
+(* Abort. *)
+
+Lemma CompatLam : forall L ψ t τ t' τ',
+    (forall x, x ∉ L -> ψ ::x x :- S__T τ  ⊢t≈ (open_Tm_wrt_Tm t (t__Var_f x)) ≈ (open_Tm_wrt_Tm t' (t__Var_f x)) ▸ S__T τ')
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__Lam τ t ≈ t__Lam τ t' ▸ S__T (T__Fun τ τ').
+Proof.
+  introv IH WFT.
+  forwards TmTy1: TmTy__Abs L. eassumption. intros. forwards [TmTy [_ _]]: IH H. eassumption.
+  forwards TmTy2: TmTy__Abs L. eassumption. intros. forwards [_ [TmTy _]]: IH H. eassumption.
+  splits. 1,2:eassumption. introv IN.
+  eapply TmTy_close1 in TmTy1. 2:eassumption.
+  eapply TmTy_close2 in TmTy2. 2:eassumption.
+  simpl+ in TmTy1. simpl+ in TmTy2.
+  apply logrel_val_exp. simp'. splits. splits; simpl+; eauto.
+  do 2 eexists. splits. 1,2:simpl+; reflexivity. intros v1 v2 VAL.
+  forwards [x NIL__x]: atom_fresh (L ∪ fv__x(⟦π1 γ ▹__x t0⟧) ∪ fv__x(⟦π2 γ ▹__x t'⟧) ∪ dom_Subx (π1 γ) ∪ dom_Subx (π2 γ)).
+  specializes IH x. specializes IH. fsetdec. destruct IH as [_ [_ IH]].
+  specializes IH ρ ((v1, v2, x) :: γ). specializes IH. simp'. do 3 eexists. splits.
+  reflexivity. assumption. rewrite <- proj1_dom_gamma_Sub. simpl+. fsetdec. assumption.
+  destruct IH as [TmTy1' [TmTy2' [v3 [v4 [OP1 [OP2 VAL']]]]]]. splits.
+  (* - applys_eq TmTy1'. simpl+. eapply CompatLam__commhelper. eauto. fsetdec. fv_empty. eauto. *)
+  - applys_eq TmTy1'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+  - applys_eq TmTy2'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+  - exists v3 v4. splits.
+    + applys_eq OP1. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    + applys_eq OP2. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    + simpl+ in VAL'. jauto.
+Qed.
+
+(* Lemma CompatLam__commhelper_helper : forall θ θ__x t1 t2 x, *)
+(*   -> x ∉ (fv__x(⟦θ__x ▹__x t1⟧) ∪ dom_Subx θ__x) *)
+(*   -> open_Tm_wrt_Tm ⟦θ ▹ ⟦θ__x ▹__x t1⟧⟧ t2 = ⟦θ ▹ {t2 ≔__x x}⟦θ__x ▹__x open_Tm_wrt_Tm t1 (t__Var_f x)⟧⟧. *)
+(* Proof. *)
+(*   introv LC NIS LCX DISJ. *)
+(*   rewrite Subx_app_open_Tm_wrt_Tm. 2:assumption. 2:symmetry; simpl+; fsetdec. *)
+(*   rewrite subst_tvar_Tm_open_Tm_wrt_Tm. 2:assumption. *)
+(*   rewrite subst_tvar_Tm_notin. 2:fsetdec. simpl+. if_taut. *)
+(*   setoid_rewrite Sub_app_Tm_notindom at 3. reflexivity. assumption. *)
+(* Qed. *)
+
+Module tvars_codom_Subx_alg <: List_to_Set_alg Atom AtomSetImpl.
+  Definition elt := (Tm * atom)%type.
+  Definition f : elt -> atoms := (ftv_Tm ∘ fst).
+End tvars_codom_Subx_alg.
+#[export] Hint Unfold tvars_codom_Subx_alg.elt tvars_codom_Subx_alg.f : algs.
+
+Module Export Tvars_codom_Subx := List_to_Set Atom AtomSetImpl tvars_codom_Subx_alg.
+Notation tvars_codom_Subx := Tvars_codom_Subx.List_to_Set.
+
+Fact Subx_app_Tm_fv : forall (θ:Subx) (t:Tm),
+    fv__x(⟦θ ▹__x t⟧) ⊆ (fv__x(t) ∖ (dom_Subx θ)) ∪ tvars_codom_Subx θ.
+Proof.
+  introv. ind_Subx θ. simpl+. crush. simpl+ in *. dist.
+  rewrite ftv_Tm_subst_tvar_Tm_upper. rewrite IHθ. fsetdec.
+Qed.
+
+Module tvars_codom_gamma_alg <: List_to_Set_alg Atom AtomSetImpl.
+  Definition elt := ((Tm * Tm) * atom)%type.
+  Definition f : elt -> atoms := (fun p => (ftv_Tm ∘ fst ∘ fst) p ∪ (ftv_Tm ∘ snd ∘ fst) p).
+End tvars_codom_gamma_alg.
+#[export] Hint Unfold tvars_codom_gamma_alg.elt tvars_codom_gamma_alg.f : algs.
+
+Module Export Tvars_codom_gamma := List_to_Set Atom AtomSetImpl tvars_codom_gamma_alg.
+Notation tvars_codom_gamma := Tvars_codom_gamma.List_to_Set.
+
+Fact proj1_tvars_codom_gamma_Subx : forall γ, tvars_codom_Subx (π1 γ) ⊆ tvars_codom_gamma γ.
+Proof. intros. ind_gamma γ; simpl+; crush. Qed.
+Fact proj2_tvars_codom_gamma_Subx : forall γ, tvars_codom_Subx (π2 γ) ⊆ tvars_codom_gamma γ.
+Proof. intros. ind_gamma γ; simpl+; crush. Qed.
+
+Lemma logrel_E_tvars_codom_gamma : forall ρ γ ψ,
+    ⦅ρ, γ⦆ ∈ ⦅𝒟, 𝒢⦆⟦ψ⟧
+  -> tvars_codom_gamma γ ≡ empty.
+Proof.
+  introv IN. gen ρ γ. induction ψ. 2:induction a. all:intros; simp' in IN.
+  - inverts IN. simpl+. crush.
+  - simpl+. destr_logrel_val IN. simpl+ in IHa. rewrite IHa. fsetdec. eauto.
+  - simpl+. destr_logrel_val IN. simpl+. fv_empty. specializes IHψ. eassumption. fsetdec.
+Qed.
+
+Corollary TmTy_rename_var' : forall ψ x y τ t τ',
+    ψ ::x x :- S__T τ ⊢t open_Tm_wrt_Tm t (t__Var_f x) ▸ S__T τ'
+  -> ψ ::x y :- S__T τ ⊢t open_Tm_wrt_Tm t (t__Var_f y) ▸ S__T τ'.
+Admitted.
+
+Lemma CompatLam' : forall ψ t t' τ τ' x,
+    ψ ::x x :- S__T τ  ⊢t≈ (open_Tm_wrt_Tm t (t__Var_f x)) ≈ (open_Tm_wrt_Tm t' (t__Var_f x)) ▸ S__T τ'
+  -> x ∉ E_names ψ ∪ fv__x(t) ∪ fv__x(t')
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__Lam τ t ≈ t__Lam τ t' ▸ S__T (T__Fun τ τ').
+Proof.
+  introv IH NIL__x WFT.
+  forwards TmTy1: TmTy__Abs empty. eassumption. intros. forwards [TmTy [_ _]]: IH. eapply TmTy_rename_var'. eassumption.
+  forwards TmTy2: TmTy__Abs empty. eassumption. intros. forwards [_ [TmTy  _]]: IH. eapply TmTy_rename_var'. eassumption.
+  splits. 1,2:eassumption. introv IN.
+  eapply TmTy_close1 in TmTy1. 2:eassumption.
+  eapply TmTy_close2 in TmTy2. 2:eassumption.
+  simpl+ in TmTy1. simpl+ in TmTy2.
+  apply logrel_val_exp. simp'. splits. splits; simpl+; eauto.
+  do 2 eexists. splits. 1,2:simpl+; reflexivity. intros v1 v2 VAL.
+  (* forwards [x NIL__x]: atom_fresh (fv__x(⟦π1 γ ▹__x t0⟧) ∪ fv__x(⟦π2 γ ▹__x t'⟧) ∪ dom_Subx (π1 γ) ∪ dom_Subx (π2 γ)). *)
+  specializes IH. destruct IH as [_ [_ IH]].
+  specializes IH ρ ((v1, v2, x) :: γ). specializes IH. simp'. do 3 eexists. splits.
+  reflexivity. assumption. rewrite logrel_E_dom_gamma. 2:eauto. fsetdec. assumption.
+  destruct IH as [TmTy1' [TmTy2' [v3 [v4 [OP1 [OP2 VAL']]]]]]. splits.
+  - applys_eq TmTy1'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    rewrite Subx_app_Tm_fv. rewrite proj1_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+    rewrite proj1_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+  - applys_eq TmTy2'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    rewrite Subx_app_Tm_fv. rewrite proj2_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+    rewrite proj2_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+  - exists v3 v4. splits.
+    + applys_eq OP1. simpl+. eapply CompatLam__commhelper; eauto with slow.
+      rewrite Subx_app_Tm_fv. rewrite proj1_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+      rewrite proj1_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+    + applys_eq OP2. simpl+. eapply CompatLam__commhelper; eauto with slow.
+      rewrite Subx_app_Tm_fv. rewrite proj2_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+      rewrite proj2_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+    + simpl+ in VAL'. jauto.
+Qed.
+
+Lemma CompatLam'' : forall ψ t t' τ τ' x,
+    ψ ::x x :- S__T τ  ⊢t≈ (open_Tm_wrt_Tm t (t__Var_f x)) ≈ (open_Tm_wrt_Tm t' (t__Var_f x)) ▸ S__T τ'
+  -> x ∉ E_names ψ ∪ fv__x(t) ∪ fv__x(t')
+  -> ψ ⊢wfτ τ
+  -> ψ ⊢t≈ t__Lam τ t ≈ t__Lam τ t' ▸ S__T (T__Fun τ τ').
+Proof.
+  introv IH NIL__x WFT.
+  forwards TmTy1: TmTy__Abs empty. eassumption. intros. forwards [TmTy [_ _]]: IH. eapply TmTy_rename_var'. eassumption.
+  forwards TmTy2: TmTy__Abs empty. eassumption. intros. forwards [_ [TmTy  _]]: IH. eapply TmTy_rename_var'. eassumption.
+  splits. 1,2:eassumption. introv IN.
+  eapply TmTy_close1 in TmTy1. 2:eassumption.
+  eapply TmTy_close2 in TmTy2. 2:eassumption.
+  simpl+ in TmTy1. simpl+ in TmTy2.
+  apply logrel_val_exp. simp'. splits. splits; simpl+; eauto.
+  do 2 eexists. splits. 1,2:simpl+; reflexivity. intros v1 v2 VAL.
+  (* forwards [x NIL__x]: atom_fresh (fv__x(⟦π1 γ ▹__x t0⟧) ∪ fv__x(⟦π2 γ ▹__x t'⟧) ∪ dom_Subx (π1 γ) ∪ dom_Subx (π2 γ)). *)
+  specializes IH. destruct IH as [_ [_ IH]].
+  specializes IH ρ ((v1, v2, x) :: γ). specializes IH. simp'. do 3 eexists. splits.
+  reflexivity. assumption. rewrite logrel_E_dom_gamma. 2:eauto. fsetdec. assumption.
+  destruct IH as [TmTy1' [TmTy2' [v3 [v4 [OP1 [OP2 VAL']]]]]]. splits.
+  - applys_eq TmTy1'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    rewrite Subx_app_Tm_fv. rewrite proj1_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+    rewrite proj1_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+  - applys_eq TmTy2'. simpl+. eapply CompatLam__commhelper; eauto with slow.
+    rewrite Subx_app_Tm_fv. rewrite proj2_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+    rewrite proj2_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+  - exists v3 v4. splits.
+    + applys_eq OP1. simpl+. eapply CompatLam__commhelper; eauto with slow.
+      rewrite Subx_app_Tm_fv. rewrite proj1_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+      rewrite proj1_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+    + applys_eq OP2. simpl+. eapply CompatLam__commhelper; eauto with slow.
+      rewrite Subx_app_Tm_fv. rewrite proj2_dom_gamma_Sub. rewrite logrel_E_dom_gamma. 2:eauto.
+      rewrite proj2_tvars_codom_gamma_Subx. rewrite logrel_E_tvars_codom_gamma. 2:eauto. fsetdec.
+    + simpl+ in VAL'. jauto.
+Qed.

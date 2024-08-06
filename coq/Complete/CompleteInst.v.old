@@ -1,0 +1,86 @@
+Set Warnings "-notation-overridden".
+
+Require Import Preamble.
+Require Import Defs.HdmLems.
+
+Require Import Defs.Rename.
+
+(* Require Import Defs.AInst. *)
+(* Require Import Defs.Foralls. *)
+(* Require Import Defs.List. *)
+(* Require Import Defs.Sub. *)
+(* Require Import Defs.Subst. *)
+(* Require Import Defs.OpenClose. *)
+
+Require Import Complete.ApplyA.
+Require Import Complete.OpenSc.
+
+Lemma Sub_app_Tm_apply_A_left : forall θ t a,
+    ⟦Rename_lift θ ▹ apply_A_left t a⟧ = apply_A_left ⟦Rename_lift θ ▹ t⟧ (Rename_app_Sub θ a).
+Proof.
+  intro θ. induction θ as [|[α__in α__out] θ].
+  - intros. simpl+. rewrite Rename_app_Sub_nil. crush.
+  - intros. simpl+. rewrite IHθ. rewrite subst_skvar_Tm_apply_A_left.
+    rewrite Rename_app_Sub_cons. reflexivity.
+Qed.
+
+(*** Lemmas *)
+Lemma Complete_Inst__insthelper : forall σ t L, exists a τ,
+    Inst t σ (apply_A_left t a) a τ L
+  /\ open_Sc_wrt_A σ a = Some τ
+  /\ length a = foralls σ.
+Proof.
+  intro σ. forall_ind σ; introv.
+  - exists ([]:A) τ . simpl+. crush.
+  - forwards [α NIL__α]: atom_fresh L.
+    forwards [a [τ [INS [EQ1 EQ2]]]]: IHn (open_Sc_wrt_T σ__Forall (T__Var_f α)). crush.
+    exists (α :: a). exists. splits.
+    + norm. applys_eq InstP. fsetdec. simpl+. eassumption.
+    + simpl+. eassumption.
+    + simpl+. crush.
+Qed.
+
+Lemma Complete_Inst__propshelper : forall a a__dec σ σ__dec τ τ__dec θ ψ,
+    ⟦θ ▹ σ⟧ = σ__dec
+  -> open_Sc_wrt_A σ a = Some τ
+  -> open_Sc_wrt_A σ__dec a__dec = Some τ__dec
+  -> length a = length a__dec
+  -> exists θ__a,
+      (ψ ::a a__dec) ⊢a a ⤳ (Rename_lift θ__a)
+    /\ ⟦(Rename_lift θ__a) ++ θ ▹ τ⟧ = τ__dec
+    /\ (Rename_app_Sub θ__a a) = a__dec.
+Proof.
+  intro a. ind_a a; introv SA OP OP__dec LEN.
+  - destruct a__dec; simpl+ in LEN; inverts LEN.
+    destruct σ; simpl+ in OP; inverts OP.
+    destruct σ__dec; simpl+ in OP__dec; inverts OP__dec.
+    exists ([]:Rename). simpl+. split. auto. simpl+ in SA. crush.
+  - destruct a__dec as [|α__dec a__dec]; simpl+ in LEN; inverts LEN.
+    destruct σ; simpl+ in OP; inverts OP.
+    destruct σ__dec; simpl+ in OP__dec; inverts OP__dec.
+    forwards [θ__a [INST [?SA EQ]]]: IHa ((T__Var_f α__dec, α) :: θ). 2:eassumption. 2:eassumption. 2:eassumption.
+      dist. rewrite Sub_app_Sc_open_Sc_wrt_T. 2:admit. simpl+ in SA. inverts SA.
+      applys_eq subst_skvar_Sc_open_Sc_wrt_T_samevar. fequals. fequals. admit. admit.
+    exists ((α__dec, α) :: θ__a). splits.
+    + econstructor. applys_eq INST. instantiate (1 := ψ ::a [α__dec]). admit.
+      split. crush. simpl+. fsetdec.
+    + simpl+ in SA0. dist. dist in SA0. rewrite subst_skvar_T_Sub_app_T.  crush. admit. admit.
+    + simpl+. fequals.
+      * rewrite Rename_app_var_notin. simpl+. crush. admit.
+      * rewrite Rename_app_Sub_cons. rewrite EQ. apply rename_skvar_A_notin. admit.
+Admitted.
+
+Lemma Complete_Inst : forall σ x L, forall ψ__dec a__p θ σ__dec τ__dec,
+    ⟦θ ▹ σ⟧ = σ__dec
+  -> open_Sc_wrt_A σ__dec a__p = Some τ__dec
+  -> length a__p = foralls σ
+  -> exists a τ, exists θ__a,
+    Inst (t__Var_f x) σ (apply_A_left (t__Var_f x) a) a τ L
+  /\ (ψ__dec ::a a__p) ⊢a a ⤳ (Rename_lift θ__a)
+  /\ ⟦(Rename_lift θ__a) ++ θ ▹ τ⟧ = τ__dec
+  /\ (Rename_app_Sub θ__a a) = a__p.
+Proof.
+  intros. forwards [a [τ [INS [EQ__τ EQ__len]]]]: Complete_Inst__insthelper σ (t__Var_f x) L.
+  forwards [θ__a [INST [?SA EQ]]]: Complete_Inst__propshelper. eassumption. eassumption. eassumption. crush.
+  exists a τ θ__a. splits; eassumption.
+Qed.
